@@ -50,6 +50,12 @@ type gachaExport struct {
 	Result  []gachaGroup `json:"result"`
 }
 
+// pullRecord 是一条带保底计数的抽卡记录。
+type pullRecord struct {
+	gachaRecord
+	Pity int // 这一抽是距上一个 S 级后的第几抽
+}
+
 // channelStats 是一个频段的统计。
 type channelStats struct {
 	Type     string
@@ -60,7 +66,8 @@ type channelStats struct {
 	B        int
 	Pity     int // 距上一个 S 级已经抽了多少次
 	HardPity int
-	Average  float64 // 平均多少抽出一个 S 级
+	Average  float64      // 平均多少抽出一个 S 级
+	Records  []pullRecord // 按时间从新到旧
 }
 
 // sPull 是一次出 S 级的记录及当时用掉的抽数。
@@ -208,6 +215,7 @@ func newZZZData(exp *gachaExport) *zzzData {
 		for _, r := range recs {
 			pity++
 			ch.Pulls++
+			ch.Records = append(ch.Records, pullRecord{gachaRecord: r, Pity: pity})
 			if r.Time > d.LastTime {
 				d.LastTime = r.Time
 			}
@@ -234,6 +242,10 @@ func newZZZData(exp *gachaExport) *zzzData {
 		ch.Pity = pity
 		if ch.S > 0 {
 			ch.Average = float64(ch.Pulls) / float64(ch.S)
+		}
+		// 展示时最新在前。
+		for i, j := 0, len(ch.Records)-1; i < j; i, j = i+1, j-1 {
+			ch.Records[i], ch.Records[j] = ch.Records[j], ch.Records[i]
 		}
 		d.TotalPulls += ch.Pulls
 		d.Channels = append(d.Channels, ch)

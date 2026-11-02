@@ -51,6 +51,8 @@ type app struct {
 	zzz       *zzzData
 	zzzErr    error
 	zzzLoaded bool
+	zzzView   int    // 0 概览，1 记录
+	zzzChan   string // 记录页选中的频段
 }
 
 // newApp 返回默认选中第一款游戏的应用状态。
@@ -213,8 +215,43 @@ func (a *app) zzzBody(c *ui.Context, pal *palette, g *game) {
 	case a.zzz == nil || a.zzz.TotalPulls == 0:
 		a.messageBody(c, pal, g, "还没有抽卡记录", "数据文件里没有可显示的记录。")
 	default:
-		a.zzzOverview(c, pal, a.zzz)
+		ui.Column(c).Grow(1).MinHeight(0).Children(func() {
+			ui.Row(c).Shrink(0).Padding(14, 28, 0, 28).Children(func() {
+				viewSwitch(c, pal, &a.zzzView)
+			})
+			if a.zzzView == 1 {
+				a.zzzRecords(c, pal, a.zzz)
+			} else {
+				a.zzzOverview(c, pal, a.zzz)
+			}
+		})
 	}
+}
+
+// viewSwitch 是概览与记录之间的切换。
+func viewSwitch(c *ui.Context, pal *palette, sel *int) {
+	parts := ui.SegmentedBase(c, sel, 2)
+	parts.Track.Padding(2).Radius(9).Background(pal.chip).Label("视图")
+	parts.Track.Children(func() {
+		for i, label := range []string{"概览", "记录"} {
+			s := parts.Segment(i).Height(26).Padding(0, 13).Radius(7).Label(label)
+			on := i == *sel
+			switch {
+			case on:
+				s.Background(pal.rowSelected)
+				chosen(s, pal)
+			case s.Hovered():
+				s.Background(pal.rowHover)
+			}
+			color := pal.textMuted
+			if on {
+				color = pal.text
+			}
+			s.Children(func() {
+				ui.Text(c, label).FontSize(12).FontWeight(500).TextColor(color).SingleLine()
+			})
+		}
+	})
 }
 
 func (a *app) messageBody(c *ui.Context, pal *palette, g *game, title, detail string) {
@@ -229,7 +266,7 @@ func (a *app) messageBody(c *ui.Context, pal *palette, g *game, title, detail st
 
 // zzzOverview 是绝区零的仪表盘：概览、频段保底和最近出金。
 func (a *app) zzzOverview(c *ui.Context, pal *palette, d *zzzData) {
-	ui.Scroll(c).Grow(1).MinHeight(0).Padding(24, 28).Gap(22).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Padding(14, 28, 24, 28).Gap(22).Children(func() {
 		ui.Column(c).Gap(10).Children(func() {
 			meta := "最后记录 " + formatDate(d.LastTime)
 			if d.UID != "" {
@@ -259,6 +296,116 @@ func (a *app) zzzOverview(c *ui.Context, pal *palette, d *zzzData) {
 			})
 		})
 	})
+}
+
+// zzzRecords 展示选中频段的完整抽卡记录。
+func (a *app) zzzRecords(c *ui.Context, pal *palette, d *zzzData) {
+	if len(d.Channels) == 0 {
+		return
+	}
+	ch := a.recordChannel(d)
+	ui.Column(c).Grow(1).MinHeight(0).Padding(14, 28, 20, 28).Gap(12).Children(func() {
+		sectionHeading(c, pal, "卡池记录", fmt.Sprintf("共 %s 条 · 最新在前", formatInt(ch.Pulls)))
+		a.channelChips(c, pal, d, ch)
+		panel := ui.Column(c).Grow(1).MinHeight(0).Background(pal.chip).Radius(12).
+			Padding(4, 14).Clip()
+		panel.Children(func() {
+			list := ui.List(c.Key("zzz-records-"+ch.Type), nil, len(ch.Records), func(i int) {
+				recordRow(c, pal, ch.Records[i])
+			}).Grow(1).MinHeight(0).Label("抽卡记录")
+			list.Children(func() {
+				if len(ch.Records) == 0 {
+					ui.Text(c, "没有记录").FontSize(13).TextColor(pal.textFaint).Padding(12)
+				}
+			})
+		})
+	})
+}
+
+// recordChannel 返回记录页选中的频段，默认第一个。
+func (a *app) recordChannel(d *zzzData) *channelStats {
+	for i := range d.Channels {
+		if d.Channels[i].Type == a.zzzChan {
+			return &d.Channels[i]
+		}
+	}
+	return &d.Channels[0]
+}
+
+func (a *app) channelChips(c *ui.Context, pal *palette, d *zzzData, selected *channelStats) {
+	ui.Row(c).Wrap().Gap(6).Children(func() {
+		for i := range d.Channels {
+			ch := &d.Channels[i]
+			color := channelColor(ch.Type, pal)
+			on := ch.Type == selected.Type
+			b := ui.ButtonBase(c.Key("zzz-chan-"+ch.Type)).Height(28).Padding(0, 11).Gap(6).
+				Radius(8).AlignItems(ui.Center).Label(ch.Name)
+			bg := pal.chip
+			fg := pal.textMuted
+			switch {
+			case on:
+				bg = color.Alpha(0.16)
+				fg = pal.text
+			case b.Hovered():
+				bg = pal.rowHover
+				fg = pal.text
+			}
+			b.Background(bg)
+			b.Children(func() {
+				ui.Box(c).Size(6, 6).Shrink(0).Radius(3).Background(color)
+				ui.Text(c, ch.Name).FontSize(12).FontWeight(500).TextColor(fg).SingleLine()
+				ui.Text(c, formatInt(ch.Pulls)).FontSize(11).TextColor(pal.textFaint).
+					FontFeatures("tnum").SingleLine()
+			})
+			if b.Clicked() && !on {
+				a.zzzChan = ch.Type
+			}
+		}
+	})
+}
+
+func recordRow(c *ui.Context, pal *palette, r pullRecord) {
+	fg, bg := rankColors(r.RankType, pal)
+	ui.Row(c).Height(38).Shrink(0).Gap(10).AlignItems(ui.Center).
+		BorderWidth(0, 0, 1, 0).BorderColor(pal.divider).Children(func() {
+		ui.Box(c).Size(20, 20).Shrink(0).Radius(6).Background(bg).Center().Children(func() {
+			ui.Text(c, rankLabel(r.RankType)).FontSize(10.5).FontWeight(700).TextColor(fg)
+		})
+		ui.Text(c, r.Name).FontSize(13.5).FontWeight(500).TextColor(pal.text).
+			SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
+		ui.Text(c, r.ItemType).FontSize(11.5).TextColor(pal.textFaint).SingleLine().Shrink(0)
+		ui.Spacer(c)
+		ui.Textf(c, "第 %d 抽", r.Pity).FontSize(11.5).TextColor(pal.textMuted).
+			FontFeatures("tnum").Width(58).TextAlign(ui.End)
+		ui.Text(c, formatDateTime(r.Time)).FontSize(11.5).TextColor(pal.textFaint).
+			FontFeatures("tnum").SingleLine().Shrink(0)
+	})
+}
+
+func rankColors(rank string, pal *palette) (fg, bg ui.Color) {
+	switch rank {
+	case "4":
+		return pal.attention, pal.attention.Alpha(0.14)
+	case "3":
+		c := ui.Hex("#8b7bd8")
+		if pal.dark {
+			c = ui.Hex("#a99bf0")
+		}
+		return c, c.Alpha(0.14)
+	default:
+		return pal.textFaint, pal.text.Alpha(0.06)
+	}
+}
+
+func rankLabel(rank string) string {
+	switch rank {
+	case "4":
+		return "S"
+	case "3":
+		return "A"
+	default:
+		return "B"
+	}
 }
 
 func sectionHeading(c *ui.Context, pal *palette, title, note string) {
@@ -390,6 +537,13 @@ func averageText(avg float64) string {
 func formatDate(s string) string {
 	if len(s) >= 10 {
 		return s[:10]
+	}
+	return s
+}
+
+func formatDateTime(s string) string {
+	if len(s) >= 16 {
+		return s[:16]
 	}
 	return s
 }

@@ -54,6 +54,18 @@ func TestZZZStats(t *testing.T) {
 	if stable.Type != "1" || stable.Pulls != 1 || stable.S != 1 || stable.Pity != 0 {
 		t.Errorf("常驻频段 %+v", stable)
 	}
+	if len(limited.Records) != 4 {
+		t.Fatalf("记录 %+v", limited.Records)
+	}
+	wantPity := []int{1, 3, 2, 1} // 最新在前：B2、S1、A1、B1
+	for i, want := range wantPity {
+		if limited.Records[i].Pity != want {
+			t.Errorf("第 %d 条保底 %d，期望 %d", i, limited.Records[i].Pity, want)
+		}
+	}
+	if limited.Records[0].Name != "B2" || limited.Records[1].Name != "S1" {
+		t.Errorf("记录顺序 %+v", limited.Records)
+	}
 	if len(d.SRecords) != 2 {
 		t.Fatalf("S 记录 %+v", d.SRecords)
 	}
@@ -97,9 +109,26 @@ func TestZZZView(t *testing.T) {
 			t.Errorf("缺少文本 %q，现有 %q", text, tt.Texts())
 		}
 	}
+
+	// 切到记录页，显示每个卡池的完整记录。
+	if err := tt.Click("记录"); err != nil {
+		t.Fatal(err)
+	}
+	for _, text := range []string{"卡池记录", "共 4 条 · 最新在前", "B2", "S1", "A1"} {
+		if !tt.HasText(text) {
+			t.Errorf("记录页缺少 %q，现有 %q", text, tt.Texts())
+		}
+	}
+	if err := tt.Click("常驻频段"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("S2") || !tt.HasText("共 1 条 · 最新在前") {
+		t.Errorf("切换卡池后文本 %q", tt.Texts())
+	}
+
 	// 最小窗口下也能构建。
 	tt.SetSize(720, 480)
-	if !tt.HasText("抽卡概览") || !tt.HasText("S 级") {
+	if !tt.HasText("卡池记录") || !tt.HasText("S2") {
 		t.Errorf("最小尺寸缺少内容，文本 %q", tt.Texts())
 	}
 }
