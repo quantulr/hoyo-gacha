@@ -12,7 +12,9 @@ type palette struct {
 	rowSelected ui.Color
 	card        ui.Color
 	chip        ui.Color
+	divider     ui.Color
 	accent      ui.Color
+	attention   ui.Color
 	danger      ui.Color
 }
 
@@ -24,7 +26,9 @@ var lightPalette = palette{
 	rowSelected: ui.Hex("#ffffff"),
 	card:        ui.Hex("#ffffff"),
 	chip:        ui.RGBA(0, 0, 0, 0.045),
+	divider:     ui.RGBA(0, 0, 0, 0.06),
 	accent:      ui.Hex("#3b6cf6"),
+	attention:   ui.Hex("#c27b0f"),
 	danger:      ui.Hex("#d93a35"),
 }
 
@@ -37,7 +41,9 @@ var darkPalette = palette{
 	rowSelected: ui.RGBA(255, 255, 255, 0.10),
 	card:        ui.Hex("#232328"),
 	chip:        ui.RGBA(255, 255, 255, 0.07),
+	divider:     ui.RGBA(255, 255, 255, 0.07),
 	accent:      ui.Hex("#6b93ff"),
+	attention:   ui.Hex("#f0a33a"),
 	danger:      ui.Hex("#ff6961"),
 }
 

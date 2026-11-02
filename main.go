@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -42,10 +44,13 @@ var games = []game{
 // ownControls 表示由界面绘制窗口按钮，而不是交给系统标题栏。
 var ownControls = runtime.GOOS != "darwin"
 
-// app 是窗口展示的状态：当前选中的游戏与窗口本身。
+// app 是窗口展示的状态：当前选中的游戏、窗口本身和已读入的数据。
 type app struct {
-	selected string
-	win      *mygo.Window
+	selected  string
+	win       *mygo.Window
+	zzz       *zzzData
+	zzzErr    error
+	zzzLoaded bool
 }
 
 // newApp 返回默认选中第一款游戏的应用状态。
@@ -171,16 +176,242 @@ func (a *app) content(c *ui.Context, pal *palette, g *game) {
 				ui.Spacer(c)
 				a.windowControls(c, pal)
 			})
-			ui.Column(c).Grow(1).MinHeight(0).Center().Padding(24).Children(func() {
-				gameImage(c, g, 56, pal).Margin(0, 0, 18, 0).
-					Shadow(0, 2, 8, 0, ui.RGBA(0, 0, 0, 0.12))
-				ui.Text(c, "还没有抽卡记录").FontSize(19).FontWeight(650).TextColor(pal.text)
-				ui.Text(c, "导入该游戏的抽卡记录后，统计和保底进度会显示在这里。").
-					FontSize(13.5).TextColor(pal.textMuted).MaxWidth(380).
-					TextAlign(ui.Center).LineHeight(1.45).Margin(8, 0, 0, 0)
+			if g.id == "zzz" {
+				a.zzzBody(c, pal, g)
+			} else {
+				a.emptyBody(c, pal, g)
+			}
+		})
+	})
+}
+
+// emptyBody 是还没有接入数据时的占位界面。
+func (a *app) emptyBody(c *ui.Context, pal *palette, g *game) {
+	ui.Column(c).Grow(1).MinHeight(0).Center().Padding(24).Children(func() {
+		gameImage(c, g, 56, pal).Margin(0, 0, 18, 0).
+			Shadow(0, 2, 8, 0, ui.RGBA(0, 0, 0, 0.12))
+		ui.Text(c, "还没有抽卡记录").FontSize(19).FontWeight(650).TextColor(pal.text)
+		ui.Text(c, "导入该游戏的抽卡记录后，统计和保底进度会显示在这里。").
+			FontSize(13.5).TextColor(pal.textMuted).MaxWidth(380).
+			TextAlign(ui.Center).LineHeight(1.45).Margin(8, 0, 0, 0)
+	})
+}
+
+// recentSCount 是“最近出金”显示的条数。
+const recentSCount = 12
+
+// zzzBody 按数据状态展示绝区零的抽卡概览。
+func (a *app) zzzBody(c *ui.Context, pal *palette, g *game) {
+	switch {
+	case !a.zzzLoaded:
+		ui.Column(c).Grow(1).MinHeight(0).Center().Gap(12).Children(func() {
+			ui.Spinner(c).Label("正在读取抽卡记录")
+			ui.Text(c, "正在读取绝区零抽卡记录…").FontSize(13).TextColor(pal.textMuted)
+		})
+	case a.zzzErr != nil:
+		a.messageBody(c, pal, g, "无法读取绝区零抽卡数据", a.zzzErr.Error())
+	case a.zzz == nil || a.zzz.TotalPulls == 0:
+		a.messageBody(c, pal, g, "还没有抽卡记录", "数据文件里没有可显示的记录。")
+	default:
+		a.zzzOverview(c, pal, a.zzz)
+	}
+}
+
+func (a *app) messageBody(c *ui.Context, pal *palette, g *game, title, detail string) {
+	ui.Column(c).Grow(1).MinHeight(0).Center().Padding(24).Children(func() {
+		gameImage(c, g, 56, pal).Margin(0, 0, 18, 0).
+			Shadow(0, 2, 8, 0, ui.RGBA(0, 0, 0, 0.12))
+		ui.Text(c, title).FontSize(19).FontWeight(650).TextColor(pal.text)
+		ui.Text(c, detail).FontSize(13).TextColor(pal.textMuted).
+			MaxWidth(420).TextAlign(ui.Center).LineHeight(1.45).Margin(8, 0, 0, 0)
+	})
+}
+
+// zzzOverview 是绝区零的仪表盘：概览、频段保底和最近出金。
+func (a *app) zzzOverview(c *ui.Context, pal *palette, d *zzzData) {
+	ui.Scroll(c).Grow(1).MinHeight(0).Padding(24, 28).Gap(22).Children(func() {
+		ui.Column(c).Gap(10).Children(func() {
+			meta := "最后记录 " + formatDate(d.LastTime)
+			if d.UID != "" {
+				meta = "UID " + d.UID + " · " + meta
+			}
+			sectionHeading(c, pal, "抽卡概览", meta)
+			statCards(c, pal, d)
+		})
+		ui.Column(c).Gap(8).Children(func() {
+			sectionHeading(c, pal, "频段保底", "自上次 S 级起")
+			for _, ch := range d.Channels {
+				channelRow(c, pal, ch)
+			}
+		})
+		ui.Column(c).Gap(8).Children(func() {
+			note := fmt.Sprintf("最近 %d 个 · 共 %d 个", min(len(d.SRecords), recentSCount), d.TotalS)
+			sectionHeading(c, pal, "最近出金", note)
+			list := ui.Column(c).Background(pal.chip).Radius(12).Padding(4, 14).Gap(2).
+				Dividers(1, pal.divider)
+			list.Children(func() {
+				for i, s := range d.SRecords {
+					if i >= recentSCount {
+						break
+					}
+					sPullRow(c, pal, s)
+				}
 			})
 		})
 	})
+}
+
+func sectionHeading(c *ui.Context, pal *palette, title, note string) {
+	ui.Row(c).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, title).FontSize(14).FontWeight(600).TextColor(pal.text).SingleLine()
+		ui.Spacer(c)
+		if note != "" {
+			ui.Text(c, note).FontSize(11.5).TextColor(pal.textFaint).
+				SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
+		}
+	})
+}
+
+func statCards(c *ui.Context, pal *palette, d *zzzData) {
+	cards := []struct {
+		label string
+		value string
+		note  string
+		color ui.Color
+	}{
+		{"总抽数", formatInt(d.TotalPulls), "全部频段", pal.text},
+		{"S 级", formatInt(d.TotalS), fmt.Sprintf("出货率 %.2f%%", d.SRate()*100), pal.attention},
+		{"A 级", formatInt(d.TotalA), fmt.Sprintf("出货率 %.2f%%", d.ARate()*100), pal.text},
+		{"平均出金", averageText(d.Average()), "抽 / S 级", pal.text},
+	}
+	width, _ := c.Size()
+	if width >= 860 {
+		ui.Row(c).Gap(10).Children(func() {
+			for _, card := range cards {
+				statCard(c, pal, card.label, card.value, card.note, card.color)
+			}
+		})
+		return
+	}
+	for i := 0; i < len(cards); i += 2 {
+		ui.Row(c).Gap(10).Children(func() {
+			for _, card := range cards[i:min(i+2, len(cards))] {
+				statCard(c, pal, card.label, card.value, card.note, card.color)
+			}
+		})
+	}
+}
+
+func statCard(c *ui.Context, pal *palette, label, value, note string, color ui.Color) {
+	ui.Column(c).Grow(1).MinWidth(0).Background(pal.chip).Radius(10).
+		Padding(13, 16).Gap(3).Children(func() {
+		ui.Text(c, label).FontSize(11.5).FontWeight(600).TextColor(pal.textMuted).SingleLine()
+		ui.Text(c, value).FontSize(23).FontWeight(650).TextColor(color).
+			FontFeatures("tnum").SingleLine()
+		ui.Text(c, note).FontSize(11.5).TextColor(pal.textFaint).SingleLine().Ellipsis("…")
+	})
+}
+
+func channelRow(c *ui.Context, pal *palette, ch channelStats) {
+	color := channelColor(ch.Type, pal)
+	ui.Row(c).Height(58).Shrink(0).Padding(0, 14).Gap(12).AlignItems(ui.Center).
+		Background(pal.chip).Radius(10).Children(func() {
+		ui.Box(c).Size(8, 8).Shrink(0).Radius(4).Background(color)
+		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+			ui.Text(c, ch.Name).FontSize(13).FontWeight(600).TextColor(pal.text).SingleLine()
+			ui.Textf(c, "%s 抽 · S %d · 平均 %s", formatInt(ch.Pulls), ch.S, averageText(ch.Average)).
+				FontSize(11.5).TextColor(pal.textFaint).FontFeatures("tnum").
+				SingleLine().Ellipsis("…")
+		})
+		ui.Column(c).Width(150).Shrink(0).AlignItems(ui.End).Gap(5).Children(func() {
+			ui.Textf(c, "保底 %d / %d", ch.Pity, ch.HardPity).
+				FontSize(11.5).TextColor(pal.textMuted).FontFeatures("tnum").SingleLine()
+			pct := float32(ch.Pity) / float32(ch.HardPity)
+			bar := ui.Box(c).Width(150).Height(5).Radius(2.5).Background(pal.text.Alpha(0.08))
+			bar.Draw(func(p *ui.Painter, r ui.Rect) {
+				if pct <= 0 {
+					return
+				}
+				p.Fill(ui.Rect{X: r.X, Y: r.Y, W: r.W * min(pct, 1), H: r.H}, color, r.H/2)
+			})
+		})
+	})
+}
+
+func sPullRow(c *ui.Context, pal *palette, s sPull) {
+	meta := s.ItemType
+	if s.Channel != "" {
+		if meta != "" {
+			meta += " · "
+		}
+		meta += s.Channel
+	}
+	ui.Row(c).Height(38).Shrink(0).Gap(10).AlignItems(ui.Center).Children(func() {
+		ui.Box(c).Size(20, 20).Shrink(0).Radius(6).Background(pal.attention.Alpha(0.14)).
+			Center().Children(func() {
+			ui.Text(c, "S").FontSize(10.5).FontWeight(700).TextColor(pal.attention)
+		})
+		ui.Text(c, s.Name).FontSize(13.5).FontWeight(500).TextColor(pal.text).
+			SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
+		ui.Text(c, meta).FontSize(11.5).TextColor(pal.textFaint).
+			SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
+		ui.Spacer(c)
+		ui.Textf(c, "第 %d 抽 · %s", s.Pity, formatDate(s.Time)).
+			FontSize(11.5).TextColor(pal.textFaint).FontFeatures("tnum").SingleLine().Shrink(0)
+	})
+}
+
+func channelColor(typ string, pal *palette) ui.Color {
+	switch typ {
+	case "2", "102":
+		return pal.attention
+	case "3", "103":
+		if pal.dark {
+			return ui.Hex("#a99bf0")
+		}
+		return ui.Hex("#8b7bd8")
+	case "5":
+		if pal.dark {
+			return ui.Hex("#7fc4b8")
+		}
+		return ui.Hex("#5f9e94")
+	default:
+		return pal.textMuted
+	}
+}
+
+func averageText(avg float64) string {
+	if avg == 0 {
+		return "—"
+	}
+	return fmt.Sprintf("%.1f", avg)
+}
+
+func formatDate(s string) string {
+	if len(s) >= 10 {
+		return s[:10]
+	}
+	return s
+}
+
+// formatInt 给数字加上千位分隔符。
+func formatInt(n int) string {
+	s := fmt.Sprint(n)
+	if len(s) <= 3 {
+		return s
+	}
+	var b strings.Builder
+	pre := len(s) % 3
+	if pre > 0 {
+		b.WriteString(s[:pre])
+	}
+	for i := pre; i < len(s); i += 3 {
+		if b.Len() > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(s[i : i+3])
+	}
+	return b.String()
 }
 
 // windowControls 画出最小化、最大化/还原和关闭按钮。
@@ -255,6 +486,14 @@ func main() {
 			opts.TitleBarHeight = 60
 		}
 		a.win = mygo.NewWindow(opts)
+		win := a.win
+		// 数据文件在后台读取，读完再交给界面线程。
+		go func() {
+			d, err := loadZZZData()
+			win.Update(func() {
+				a.zzz, a.zzzErr, a.zzzLoaded = d, err, true
+			})
+		}()
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
