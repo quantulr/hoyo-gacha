@@ -14,8 +14,7 @@ type game struct {
 	id      string
 	name    string
 	tagline string
-	accent  ui.Color
-	icon    *ui.SVG
+	art     *ui.Bitmap
 }
 
 // games 是侧边栏里的全部游戏，顺序即显示顺序。
@@ -24,22 +23,19 @@ var games = []game{
 		id:      "genshin",
 		name:    "原神",
 		tagline: "提瓦特大陆的旅途记录",
-		accent:  ui.Hex("#5f9e94"),
-		icon:    genshinIcon,
+		art:     gameArt("genshin.png"),
 	},
 	{
 		id:      "starrail",
 		name:    "崩坏：星穹铁道",
 		tagline: "开拓者的星穹列车手记",
-		accent:  ui.Hex("#8b7bd8"),
-		icon:    starRailIcon,
+		art:     gameArt("starrail.png"),
 	},
 	{
 		id:      "zzz",
 		name:    "绝区零",
 		tagline: "新艾利都的委托档案",
-		accent:  ui.Hex("#d9a13b"),
-		icon:    zzzIcon,
+		art:     gameArt("zzz.png"),
 	},
 }
 
@@ -129,12 +125,10 @@ func (a *app) gameRow(c *ui.Context, pal *palette, g *game) {
 	selected := a.selected == g.id
 	row := ui.ButtonBase(c.Key("game-"+g.id)).Height(38).Shrink(0).Margin(0, 0, 1, 0).
 		Padding(0, 10, 0, 12).Gap(10).Radius(8).Justify(ui.Start).AlignItems(ui.Center).Label(g.name)
-	iconColor := pal.textMuted
 	bg := ui.Transparent
 	switch {
 	case selected:
 		bg = pal.rowSelected
-		iconColor = pal.text
 	case row.Hovered():
 		bg = pal.rowHover
 	}
@@ -143,13 +137,23 @@ func (a *app) gameRow(c *ui.Context, pal *palette, g *game) {
 		chosen(row, pal)
 	}
 	row.Children(func() {
-		ui.Icon(c, g.icon).Size(16, 16).TextColor(iconColor)
+		gameImage(c, g, 18, pal)
 		ui.Text(c, g.name).FontSize(13.5).FontWeight(500).TextColor(pal.text).
 			SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
 	})
 	if row.Clicked() && !selected {
 		a.selected = g.id
 	}
+}
+
+// gameImage 显示游戏的官方图标，圆角与源图一致，并加一条发丝边，
+// 让浅色图标在白色卡片上也有清晰轮廓。
+func gameImage(c *ui.Context, g *game, size float32, pal *palette) ui.Element {
+	e := ui.Image(c, g.art).Size(size, size).Shrink(0).Radius(size * 0.22)
+	if pal.dark {
+		return e.Border(0.5, ui.RGBA(255, 255, 255, 0.12))
+	}
+	return e.Border(0.5, ui.RGBA(0, 0, 0, 0.10))
 }
 
 // content 是右侧的大卡片：顶部是当前游戏，主体是记录占位区。
@@ -160,7 +164,7 @@ func (a *app) content(c *ui.Context, pal *palette, g *game) {
 		card.Children(func() {
 			ui.Row(c).Height(44).Shrink(0).Padding(0, 10, 0, 20).Gap(8).
 				AlignItems(ui.Center).DragWindow().Children(func() {
-				ui.Icon(c, g.icon).Size(16, 16).TextColor(pal.textMuted)
+				gameImage(c, g, 18, pal)
 				ui.Text(c, g.name).FontSize(14).FontWeight(600).TextColor(pal.text).SingleLine()
 				ui.Text(c, "· "+g.tagline).FontSize(12.5).TextColor(pal.textFaint).
 					SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
@@ -168,10 +172,8 @@ func (a *app) content(c *ui.Context, pal *palette, g *game) {
 				a.windowControls(c, pal)
 			})
 			ui.Column(c).Grow(1).MinHeight(0).Center().Padding(24).Children(func() {
-				ui.Box(c).Size(52, 52).Radius(14).Center().Background(g.accent.Alpha(0.13)).
-					TextColor(g.accent).Margin(0, 0, 18, 0).Children(func() {
-					ui.Icon(c, g.icon).Size(26, 26)
-				})
+				gameImage(c, g, 56, pal).Margin(0, 0, 18, 0).
+					Shadow(0, 2, 8, 0, ui.RGBA(0, 0, 0, 0.12))
 				ui.Text(c, "还没有抽卡记录").FontSize(19).FontWeight(650).TextColor(pal.text)
 				ui.Text(c, "导入该游戏的抽卡记录后，统计和保底进度会显示在这里。").
 					FontSize(13.5).TextColor(pal.textMuted).MaxWidth(380).
