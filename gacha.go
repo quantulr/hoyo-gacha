@@ -70,6 +70,27 @@ type pullRecord struct {
 	Lost bool // S 级不是当期 UP；常驻、邦布或缺少卡池数据时为 false
 }
 
+// 记录页的筛选模式。
+const (
+	zzzFilterAll = iota // 全部
+	zzzFilterSA         // S + A
+	zzzFilterS          // 仅 S
+)
+
+// filterPullRanks 按等级保留记录。
+func filterPullRanks(recs []pullRecord, mode int) []pullRecord {
+	if mode == zzzFilterAll {
+		return recs
+	}
+	out := make([]pullRecord, 0, len(recs))
+	for _, r := range recs {
+		if r.RankType == "4" || (mode == zzzFilterSA && r.RankType == "3") {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
 // channelStats 是一个频段的统计。
 type channelStats struct {
 	Type     string

@@ -53,6 +53,7 @@ type app struct {
 	zzzLoaded bool
 	zzzView   int    // 0 概览，1 记录
 	zzzChan   string // 记录页选中的频段
+	zzzFilter int    // 记录页筛选：0 全部，1 S+A，2 S
 
 	zzzFetching bool   // 正在从游戏接口刷新
 	zzzStatus   string // 刷新进度或结果
@@ -316,13 +317,13 @@ func (a *app) publish(fn func()) {
 	fn()
 }
 
-// viewSwitch 是概览与记录之间的切换。
-func viewSwitch(c *ui.Context, pal *palette, sel *int) {
-	parts := ui.SegmentedBase(c, sel, 2)
-	parts.Track.Padding(2).Radius(9).Background(pal.chip).Label("视图")
+// segmented 是一组分段选择按钮。
+func segmented(c *ui.Context, pal *palette, sel *int, label string, labels []string) {
+	parts := ui.SegmentedBase(c, sel, len(labels))
+	parts.Track.Padding(2).Radius(9).Background(pal.chip).Label(label)
 	parts.Track.Children(func() {
-		for i, label := range []string{"概览", "记录"} {
-			s := parts.Segment(i).Height(26).Padding(0, 13).Radius(7).Label(label)
+		for i, text := range labels {
+			s := parts.Segment(i).Height(26).Padding(0, 12).Radius(7).Label(text)
 			on := i == *sel
 			switch {
 			case on:
@@ -336,10 +337,20 @@ func viewSwitch(c *ui.Context, pal *palette, sel *int) {
 				color = pal.text
 			}
 			s.Children(func() {
-				ui.Text(c, label).FontSize(12).FontWeight(500).TextColor(color).SingleLine()
+				ui.Text(c, text).FontSize(12).FontWeight(500).TextColor(color).SingleLine()
 			})
 		}
 	})
+}
+
+// viewSwitch 是概览与记录之间的切换。
+func viewSwitch(c *ui.Context, pal *palette, sel *int) {
+	segmented(c, pal, sel, "视图", []string{"概览", "记录"})
+}
+
+// rankFilter 是记录页的等级筛选。
+func rankFilter(c *ui.Context, pal *palette, sel *int) {
+	segmented(c, pal, sel, "筛选", []string{"全部", "S+A", "仅 S"})
 }
 
 func (a *app) messageBody(c *ui.Context, pal *palette, g *game, title, detail string) {
@@ -392,18 +403,26 @@ func (a *app) zzzRecords(c *ui.Context, pal *palette, d *zzzData) {
 		return
 	}
 	ch := a.recordChannel(d)
+	recs := filterPullRanks(ch.Records, a.zzzFilter)
 	ui.Column(c).Grow(1).MinHeight(0).Padding(14, 28, 20, 28).Gap(12).Children(func() {
-		sectionHeading(c, pal, "卡池记录", fmt.Sprintf("共 %s 条 · 最新在前", formatInt(ch.Pulls)))
-		a.channelChips(c, pal, d, ch)
+		sectionHeading(c, pal, "卡池记录", fmt.Sprintf("共 %s 条 · 最新在前", formatInt(len(recs))))
+		ui.Row(c).AlignItems(ui.Start).Gap(12).Children(func() {
+			a.channelChips(c, pal, d, ch).Grow(1)
+			rankFilter(c, pal, &a.zzzFilter)
+		})
 		panel := ui.Column(c).Grow(1).MinHeight(0).Background(pal.chip).Radius(12).
 			Padding(4, 14).Clip()
 		panel.Children(func() {
-			list := ui.List(c.Key("zzz-records-"+ch.Type), nil, len(ch.Records), func(i int) {
-				recordRow(c, pal, ch.Records[i])
+			list := ui.List(c.Key(fmt.Sprintf("zzz-records-%s-%d", ch.Type, a.zzzFilter)), nil, len(recs), func(i int) {
+				recordRow(c, pal, recs[i])
 			}).Grow(1).MinHeight(0).Label("抽卡记录")
 			list.Children(func() {
-				if len(ch.Records) == 0 {
-					ui.Text(c, "没有记录").FontSize(13).TextColor(pal.textFaint).Padding(12)
+				if len(recs) == 0 {
+					msg := "没有记录"
+					if len(ch.Records) > 0 {
+						msg = "没有符合筛选的记录"
+					}
+					ui.Text(c, msg).FontSize(13).TextColor(pal.textFaint).Padding(12)
 				}
 			})
 		})
@@ -420,8 +439,8 @@ func (a *app) recordChannel(d *zzzData) *channelStats {
 	return &d.Channels[0]
 }
 
-func (a *app) channelChips(c *ui.Context, pal *palette, d *zzzData, selected *channelStats) {
-	ui.Row(c).Wrap().Gap(6).Children(func() {
+func (a *app) channelChips(c *ui.Context, pal *palette, d *zzzData, selected *channelStats) ui.Element {
+	return ui.Row(c).Wrap().Gap(6).Children(func() {
 		for i := range d.Channels {
 			ch := &d.Channels[i]
 			color := channelColor(ch.Type, pal)

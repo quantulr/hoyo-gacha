@@ -166,6 +166,60 @@ func TestGachaGroupMarshal(t *testing.T) {
 	}
 }
 
+func TestFilterPullRanks(t *testing.T) {
+	d := testZZZData(t)
+	recs := d.Channels[0].Records // 最新在前：B2、S1、A1、B1
+	if got := filterPullRanks(recs, zzzFilterAll); len(got) != 4 {
+		t.Errorf("全部筛选 %d 条，期望 4 条", len(got))
+	}
+	sa := filterPullRanks(recs, zzzFilterSA)
+	if len(sa) != 2 || sa[0].Name != "S1" || sa[1].Name != "A1" {
+		t.Errorf("S+A 筛选 %+v", sa)
+	}
+	s := filterPullRanks(recs, zzzFilterS)
+	if len(s) != 1 || s[0].Name != "S1" {
+		t.Errorf("仅 S 筛选 %+v", s)
+	}
+}
+
+func TestZZZRankFilter(t *testing.T) {
+	a := newApp()
+	a.selected = "zzz"
+	a.zzz = testZZZData(t)
+	a.zzzLoaded = true
+	tt := ui.NewTester(a.view, 960, 680)
+	if err := tt.Click("记录"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("B2") || !tt.HasText("A1") || !tt.HasText("S1") {
+		t.Fatalf("默认应显示全部记录，现有 %q", tt.Texts())
+	}
+
+	if err := tt.Click("S+A"); err != nil {
+		t.Fatal(err)
+	}
+	if tt.HasText("B2") || tt.HasText("B1") {
+		t.Errorf("S+A 不应显示 B 级，现有 %q", tt.Texts())
+	}
+	if !tt.HasText("A1") || !tt.HasText("S1") || !tt.HasText("共 2 条 · 最新在前") {
+		t.Errorf("S+A 筛选结果 %q", tt.Texts())
+	}
+
+	if err := tt.Click("仅 S"); err != nil {
+		t.Fatal(err)
+	}
+	if tt.HasText("A1") || !tt.HasText("S1") || !tt.HasText("共 1 条 · 最新在前") {
+		t.Errorf("仅 S 筛选结果 %q", tt.Texts())
+	}
+
+	if err := tt.Click("全部"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("B2") || !tt.HasText("共 4 条 · 最新在前") {
+		t.Errorf("恢复全部后 %q", tt.Texts())
+	}
+}
+
 func TestFormatInt(t *testing.T) {
 	for n, want := range map[int]string{0: "0", 79: "79", 711: "711", 4698: "4,698", 1234567: "1,234,567"} {
 		if got := formatInt(n); got != want {
