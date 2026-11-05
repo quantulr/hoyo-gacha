@@ -47,6 +47,17 @@ var darkPalette = palette{
 	danger:      ui.Hex("#ff6961"),
 }
 
+// channelHues 返回频段标签用的紫色和青色。
+func channelHues(pal *palette) (purple, teal ui.Color) {
+	purple = ui.Hex("#8b7bd8")
+	teal = ui.Hex("#5f9e94")
+	if pal.dark {
+		purple = ui.Hex("#a99bf0")
+		teal = ui.Hex("#7fc4b8")
+	}
+	return purple, teal
+}
+
 func paletteFor(c *ui.Context) *palette {
 	if c.Theme().Dark {
 		return &darkPalette

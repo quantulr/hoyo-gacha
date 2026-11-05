@@ -166,25 +166,12 @@ type gachaSpec struct {
 	pity  map[string]int // 各频段的 S 级保底抽数，缺省 90
 }
 
-var gachaSpecs = map[string]gachaSpec{
-	"genshin": {
-		sRank: "5",
-		aRank: "4",
-		bRank: "3",
-		pity:  map[string]int{"302": 80, "100": 20},
-	},
-	"zzz": {
-		sRank: "4",
-		aRank: "3",
-		bRank: "2",
-		pity:  map[string]int{"3": 80, "103": 80, "5": 80},
-	},
-	"starrail": {
-		sRank: "5",
-		aRank: "4",
-		bRank: "3",
-		pity:  map[string]int{"12": 80, "22": 80, "2": 50},
-	},
+// gachaSpecFor 返回游戏的等级与保底规则。
+func gachaSpecFor(game string) gachaSpec {
+	if g := gameByID(game); g != nil {
+		return g.spec
+	}
+	return gachaSpec{}
 }
 
 // gachaData 是一款游戏抽卡数据的汇总。
@@ -228,16 +215,6 @@ func loadGameData(game string) (*gachaData, error) {
 	return loadGachaDir(filepath.Join(root, "data", game), game)
 }
 
-// loadZZZData 从应用数据目录读取绝区零的抽卡数据。
-func loadZZZData() (*gachaData, error) {
-	return loadGameData("zzz")
-}
-
-// loadZZZDir 从 dir 读取 config.json 指向的绝区零抽卡文件。
-func loadZZZDir(dir string) (*gachaData, error) {
-	return loadGachaDir(dir, "zzz")
-}
-
 // loadGachaDir 从 dir 读取 config.json 指向的抽卡文件。
 func loadGachaDir(dir, game string) (*gachaData, error) {
 	path, err := gachaFilePath(dir)
@@ -252,11 +229,9 @@ func loadGachaDir(dir, game string) (*gachaData, error) {
 	if err != nil {
 		return nil, err
 	}
-	// 卡池数据只用于标记歪，读取失败不影响抽卡记录本身。
-	if game == "zzz" {
-		if set, err := loadZZZBanners(); err == nil {
-			annotateZZZLost(d, set.Banners)
-		}
+	// 游戏的补充数据（如卡池）读取失败不影响抽卡记录本身。
+	if g := gameByID(game); g != nil && g.annotate != nil {
+		g.annotate(d)
 	}
 	return d, nil
 }
@@ -302,16 +277,6 @@ func parseGacha(data []byte, game string) (*gachaData, error) {
 	return newGachaData(&exp, game), nil
 }
 
-// parseZZZ 解析绝区零抽卡导出文件。
-func parseZZZ(data []byte) (*gachaData, error) {
-	return parseGacha(data, "zzz")
-}
-
-// parseStarRail 解析崩坏：星穹铁道抽卡导出文件。
-func parseStarRail(data []byte) (*gachaData, error) {
-	return parseGacha(data, "starrail")
-}
-
 // newGachaData 按频段汇总记录，并算出保底与出金历史。
 func newGachaData(exp *gachaExport, game string) *gachaData {
 	names := make(map[string]string, len(exp.TypeMap))
@@ -334,7 +299,7 @@ func newGachaData(exp *gachaExport, game string) *gachaData {
 		}
 	}
 
-	spec := gachaSpecs[game]
+	spec := gachaSpecFor(game)
 	d := &gachaData{UID: exp.UID}
 	for _, typ := range order {
 		recs := groups[typ]
@@ -406,14 +371,9 @@ func newGachaData(exp *gachaExport, game string) *gachaData {
 	return d
 }
 
-// newZZZData 按绝区零频段汇总记录。
-func newZZZData(exp *gachaExport) *gachaData {
-	return newGachaData(exp, "zzz")
-}
-
 // hardPity 是一款游戏各频道的 S 级保底抽数。
 func hardPity(game, typ string) int {
-	if p, ok := gachaSpecs[game].pity[typ]; ok {
+	if p, ok := gachaSpecFor(game).pity[typ]; ok {
 		return p
 	}
 	return 90

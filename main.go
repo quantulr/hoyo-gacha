@@ -11,36 +11,6 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// game 是一款由本应用管理抽卡记录的游戏。
-type game struct {
-	id      string
-	name    string
-	tagline string
-	art     *ui.Bitmap
-}
-
-// games 是侧边栏里的全部游戏，顺序即显示顺序。
-var games = []game{
-	{
-		id:      "genshin",
-		name:    "原神",
-		tagline: "提瓦特大陆的旅途记录",
-		art:     gameArt("genshin.png"),
-	},
-	{
-		id:      "starrail",
-		name:    "崩坏：星穹铁道",
-		tagline: "开拓者的星穹列车手记",
-		art:     gameArt("starrail.png"),
-	},
-	{
-		id:      "zzz",
-		name:    "绝区零",
-		tagline: "新艾利都的委托档案",
-		art:     gameArt("zzz.png"),
-	},
-}
-
 // ownControls 表示由界面绘制窗口按钮，而不是交给系统标题栏。
 var ownControls = runtime.GOOS != "darwin"
 
@@ -213,22 +183,15 @@ func (a *app) content(c *ui.Context, pal *palette, g *game) {
 				ui.Text(c, "· "+g.tagline).FontSize(12.5).TextColor(pal.textFaint).
 					SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
 				ui.Spacer(c)
-				switch g.id {
-				case "starrail":
-					a.refreshButton(c, pal, "starrail-refresh", a.starrailFetching, a.refreshStarRail)
-				case "zzz":
-					a.refreshButton(c, pal, "zzz-refresh", a.zzzFetching, a.refreshZZZ)
+				if g.refresh != nil && g.fetching != nil {
+					_, fetching := g.fetching(a)
+					a.refreshButton(c, pal, g.id+"-refresh", fetching, func() { g.refresh(a) })
 				}
 				a.windowControls(c, pal)
 			})
-			switch g.id {
-			case "genshin":
-				a.genshinBody(c, pal, g)
-			case "starrail":
-				a.starrailBody(c, pal, g)
-			case "zzz":
-				a.zzzBody(c, pal, g)
-			default:
+			if g.body != nil {
+				g.body(a, c, pal, g)
+			} else {
 				a.emptyBody(c, pal, g)
 			}
 		})
@@ -249,42 +212,6 @@ func (a *app) emptyBody(c *ui.Context, pal *palette, g *game) {
 
 // recentSCount 是“最近出金”显示的条数。
 const recentSCount = 12
-
-// gachaTerms 返回游戏对应的“全部抽数”说明和保底标题。
-func gachaTerms(g *game) (all, pity string) {
-	switch g.id {
-	case "genshin":
-		return "全部祈愿", "祈愿保底"
-	case "starrail":
-		return "全部跃迁", "跃迁保底"
-	default:
-		return "全部频段", "频段保底"
-	}
-}
-
-// zzzBody 按数据状态展示绝区零的抽卡概览。
-func (a *app) zzzBody(c *ui.Context, pal *palette, g *game) {
-	if a.zzzStatus != "" && !a.zzzFetching {
-		a.statusRow(c, pal, a.zzzStatus)
-	}
-	a.gachaBody(c, pal, g, a.zzz, a.zzzErr, a.zzzLoaded, &a.zzzView,
-		"先在游戏内打开「调频记录」页，再点右上角「刷新」即可读取最新记录。")
-}
-
-// genshinBody 按数据状态展示原神的抽卡概览。
-func (a *app) genshinBody(c *ui.Context, pal *palette, g *game) {
-	a.gachaBody(c, pal, g, a.genshin, a.genshinErr, a.genshinLoaded, &a.genshinView,
-		"把 gacha-list-*.json 放到应用数据目录的 genshin 文件夹后重启即可。")
-}
-
-// starrailBody 按数据状态展示崩坏：星穹铁道的抽卡概览。
-func (a *app) starrailBody(c *ui.Context, pal *palette, g *game) {
-	if a.starrailStatus != "" && !a.starrailFetching {
-		a.statusRow(c, pal, a.starrailStatus)
-	}
-	a.gachaBody(c, pal, g, a.starrail, a.starrailErr, a.starrailLoaded, &a.starrailView,
-		"先在游戏内打开「跃迁记录」页，再点右上角「刷新」即可读取最新记录。")
-}
 
 // gachaBody 按数据状态展示一款游戏的抽卡概览和记录。
 func (a *app) gachaBody(c *ui.Context, pal *palette, g *game, d *gachaData, err error, loaded bool,
@@ -349,11 +276,13 @@ func (a *app) statusRow(c *ui.Context, pal *palette, status string) {
 
 // refreshStatus 返回正在进行的刷新状态；没有刷新时 ok 为 false。
 func (a *app) refreshStatus() (string, bool) {
-	switch {
-	case a.starrailFetching:
-		return a.starrailStatus, true
-	case a.zzzFetching:
-		return a.zzzStatus, true
+	for i := range games {
+		if games[i].fetching == nil {
+			continue
+		}
+		if status, ok := games[i].fetching(a); ok {
+			return status, true
+		}
 	}
 	return "", false
 }
@@ -380,66 +309,6 @@ func (a *app) refreshOverlay(c *ui.Context, pal *palette, status string) {
 				})
 		})
 	})
-}
-
-// refreshZZZ 在后台读取日志并抓取记录，完成后回到主线程刷新界面。
-func (a *app) refreshZZZ() {
-	if a.zzzFetching {
-		return
-	}
-	a.zzzFetching = true
-	a.zzzStatus = "正在读取游戏日志…"
-	go func() {
-		res, err := refreshZZZData(func(msg string) {
-			a.publish(func() { a.zzzStatus = msg })
-		})
-		a.publish(func() {
-			a.zzzFetching = false
-			if err != nil {
-				a.zzzStatus = ""
-				a.zzzToast = "刷新失败：" + err.Error()
-				return
-			}
-			d, loadErr := loadZZZData()
-			a.zzz, a.zzzErr, a.zzzLoaded = d, loadErr, true
-			if loadErr != nil {
-				a.zzzStatus = ""
-				a.zzzToast = "刷新成功，但读取数据失败：" + loadErr.Error()
-				return
-			}
-			a.zzzStatus = res.Message()
-		})
-	}()
-}
-
-// refreshStarRail 在后台读取日志与网页缓存并抓取记录，完成后刷新界面。
-func (a *app) refreshStarRail() {
-	if a.starrailFetching {
-		return
-	}
-	a.starrailFetching = true
-	a.starrailStatus = "正在读取游戏日志与缓存…"
-	go func() {
-		res, err := refreshStarRailData(func(msg string) {
-			a.publish(func() { a.starrailStatus = msg })
-		})
-		a.publish(func() {
-			a.starrailFetching = false
-			if err != nil {
-				a.starrailStatus = ""
-				a.starrailToast = "刷新失败：" + err.Error()
-				return
-			}
-			d, loadErr := loadStarRailData()
-			a.starrail, a.starrailErr, a.starrailLoaded = d, loadErr, true
-			if loadErr != nil {
-				a.starrailStatus = ""
-				a.starrailToast = "刷新成功，但读取数据失败：" + loadErr.Error()
-				return
-			}
-			a.starrailStatus = res.Message()
-		})
-	}()
 }
 
 // publish 把后台结果交给界面线程；没有窗口时（测试）直接执行。
@@ -509,8 +378,7 @@ func (a *app) gachaOverview(c *ui.Context, pal *palette, g *game, d *gachaData) 
 			statCards(c, pal, g, d)
 		})
 		ui.Column(c).Gap(8).Children(func() {
-			_, pityTitle := gachaTerms(g)
-			sectionHeading(c, pal, pityTitle, "自上次 S 级起")
+			sectionHeading(c, pal, g.pityTerm, "自上次 S 级起")
 			for _, ch := range d.Channels {
 				channelRow(c, pal, g, ch)
 			}
@@ -579,7 +447,7 @@ func (a *app) channelChips(c *ui.Context, pal *palette, g *game, d *gachaData, s
 	return ui.Row(c).Wrap().Gap(6).Children(func() {
 		for i := range d.Channels {
 			ch := &d.Channels[i]
-			color := channelColor(ch.Type, g.id, pal)
+			color := g.channelColor(ch.Type, pal)
 			on := ch.Type == selected.Type
 			b := ui.ButtonBase(c.Key("gacha-chan-"+g.id+"-"+ch.Type)).Height(28).Padding(0, 11).Gap(6).
 				Radius(8).AlignItems(ui.Center).Label(ch.Name)
@@ -673,14 +541,13 @@ func sectionHeading(c *ui.Context, pal *palette, title, note string) {
 }
 
 func statCards(c *ui.Context, pal *palette, g *game, d *gachaData) {
-	all, _ := gachaTerms(g)
 	cards := []struct {
 		label string
 		value string
 		note  string
 		color ui.Color
 	}{
-		{"总抽数", formatInt(d.TotalPulls), all, pal.text},
+		{"总抽数", formatInt(d.TotalPulls), g.allTerm, pal.text},
 		{"S 级", formatInt(d.TotalS), fmt.Sprintf("出货率 %.2f%%", d.SRate()*100), pal.attention},
 		{"A 级", formatInt(d.TotalA), fmt.Sprintf("出货率 %.2f%%", d.ARate()*100), pal.text},
 		{"平均出金", averageText(d.Average()), "抽 / S 级", pal.text},
@@ -714,7 +581,7 @@ func statCard(c *ui.Context, pal *palette, label, value, note string, color ui.C
 }
 
 func channelRow(c *ui.Context, pal *palette, g *game, ch channelStats) {
-	color := channelColor(ch.Type, g.id, pal)
+	color := g.channelColor(ch.Type, pal)
 	ui.Row(c).Height(58).Shrink(0).Padding(0, 14).Gap(12).AlignItems(ui.Center).
 		Background(pal.chip).Radius(10).Children(func() {
 		ui.Box(c).Size(8, 8).Shrink(0).Radius(4).Background(color)
@@ -760,51 +627,6 @@ func sPullRow(c *ui.Context, pal *palette, s sPull) {
 		ui.Textf(c, "第 %d 抽 · %s", s.Pity, formatDate(s.Time)).
 			FontSize(11.5).TextColor(pal.textFaint).FontFeatures("tnum").SingleLine().Shrink(0)
 	})
-}
-
-func channelColor(typ, game string, pal *palette) ui.Color {
-	purple := ui.Hex("#8b7bd8")
-	teal := ui.Hex("#5f9e94")
-	if pal.dark {
-		purple = ui.Hex("#a99bf0")
-		teal = ui.Hex("#7fc4b8")
-	}
-	if game == "genshin" {
-		switch typ {
-		case "301": // 角色活动祈愿
-			return pal.attention
-		case "302": // 武器活动祈愿
-			return purple
-		case "500": // 集录祈愿
-			return pal.accent
-		case "100": // 新手祈愿
-			return teal
-		default: // 常驻祈愿
-			return pal.textMuted
-		}
-	}
-	if game == "starrail" {
-		switch typ {
-		case "11", "21": // 角色活动跃迁、角色联动跃迁
-			return pal.attention
-		case "12", "22": // 光锥活动跃迁、光锥联动跃迁
-			return purple
-		case "2": // 新手跃迁
-			return teal
-		default: // 常驻跃迁
-			return pal.textMuted
-		}
-	}
-	switch typ {
-	case "2", "102":
-		return pal.attention
-	case "3", "103":
-		return purple
-	case "5":
-		return teal
-	default:
-		return pal.textMuted
-	}
 }
 
 func averageText(avg float64) string {
@@ -923,13 +745,26 @@ func main() {
 		win := a.win
 		// 数据文件在后台读取，读完再交给界面线程。
 		go func() {
-			gi, giErr := loadGenshinData()
-			sr, srErr := loadStarRailData()
-			zzz, zzzErr := loadZZZData()
+			type result struct {
+				game *game
+				data *gachaData
+				err  error
+			}
+			results := make([]result, 0, len(games))
+			for i := range games {
+				g := &games[i]
+				if g.load == nil {
+					continue
+				}
+				d, err := g.load()
+				results = append(results, result{g, d, err})
+			}
 			win.Update(func() {
-				a.genshin, a.genshinErr, a.genshinLoaded = gi, giErr, true
-				a.starrail, a.starrailErr, a.starrailLoaded = sr, srErr, true
-				a.zzz, a.zzzErr, a.zzzLoaded = zzz, zzzErr, true
+				for _, r := range results {
+					if r.game.apply != nil {
+						r.game.apply(a, r.data, r.err)
+					}
+				}
 			})
 		}()
 	})
