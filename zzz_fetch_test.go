@@ -13,6 +13,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/egoist/mygo/ui"
 )
 
 func TestFindZZZLogURL(t *testing.T) {
@@ -251,9 +253,13 @@ func TestFetchZZZAll(t *testing.T) {
 	defer func() { zzzHTTPClient, zzzSleep = oldClient, oldSleep }()
 
 	api := &zzzAPIURL{domain: server.URL, query: "authkey=test&lang=zh-cn&game_biz=nap_cn", lang: "zh-cn"}
-	res, err := fetchZZZAll(dir, api, nil)
+	ready := false
+	res, err := fetchZZZAll(dir, api, nil, func() { ready = true })
 	if err != nil {
 		t.Fatal(err)
+	}
+	if !ready {
+		t.Error("authkey 校验通过后应调用 ready")
 	}
 	if res.UID != "42" || res.Added != 2 || res.Total != 4 {
 		t.Errorf("结果 %+v", res)
@@ -298,8 +304,30 @@ func TestFetchZZZAuthkeyExpired(t *testing.T) {
 	defer func() { zzzHTTPClient, zzzSleep = oldClient, oldSleep }()
 
 	api := &zzzAPIURL{domain: server.URL, query: "authkey=test", lang: "zh-cn"}
-	_, err := fetchZZZAll(t.TempDir(), api, nil)
+	ready := false
+	_, err := fetchZZZAll(t.TempDir(), api, nil, func() { ready = true })
 	if !errors.Is(err, errZZZAuthkey) {
 		t.Fatalf("错误 = %v，期望 authkey 失效", err)
+	}
+	if ready {
+		t.Error("authkey 失效时不应进入翻页阶段")
+	}
+}
+
+func TestZZZCheckingNoOverlay(t *testing.T) {
+	a := newApp()
+	a.selected = "zzz"
+	a.zzz = testZZZData(t)
+	a.zzzLoaded = true
+	a.zzzChecking = true
+	a.zzzStatus = "正在确认游戏账号…"
+	tt := ui.NewTester(a.view, 960, 680)
+	if tt.HasText("正在刷新抽卡记录") {
+		t.Errorf("校验阶段不应显示刷新弹框，现有 %q", tt.Texts())
+	}
+	for _, text := range []string{"正在确认游戏账号…", "刷新中…"} {
+		if !tt.HasText(text) {
+			t.Errorf("缺少文本 %q，现有 %q", text, tt.Texts())
+		}
 	}
 }

@@ -15,6 +15,7 @@ var zzzGame = game{
 	channelColor: zzzChannelColor,
 	refresh:      (*app).refreshZZZ,
 	fetching:     (*app).zzzFetchState,
+	busy:         (*app).zzzBusy,
 	load:         loadZZZData,
 	apply:        (*app).applyZZZData,
 	annotate:     annotateZZZLoaded,
@@ -61,22 +62,39 @@ func (a *app) zzzBody(c *ui.Context, pal *palette, g *game) {
 		"先在游戏内打开「调频记录」页，再点右上角「刷新」即可读取最新记录。")
 }
 
+// zzzFetchState 返回刷新进度；只有 authkey 校验通过后才返回 ok，
+// 避免链接失效时先闪一下进度弹框。
 func (a *app) zzzFetchState() (string, bool) {
 	return a.zzzStatus, a.zzzFetching
 }
 
+// zzzBusy 表示绝区零正在后台刷新，用于禁用刷新按钮。
+func (a *app) zzzBusy() bool {
+	return a.zzzChecking || a.zzzFetching
+}
+
 // refreshZZZ 在后台读取日志并抓取记录，完成后回到主线程刷新界面。
 func (a *app) refreshZZZ() {
-	if a.zzzFetching {
+	if a.zzzBusy() {
 		return
 	}
-	a.zzzFetching = true
+	a.zzzChecking = true
 	a.zzzStatus = "正在读取游戏日志…"
 	go func() {
-		res, err := refreshZZZData(func(msg string) {
-			a.publish(func() { a.zzzStatus = msg })
-		})
+		res, err := refreshZZZData(
+			func(msg string) {
+				a.publish(func() { a.zzzStatus = msg })
+			},
+			func() {
+				// authkey 已通过校验，从这里开始显示进度弹框。
+				a.publish(func() {
+					a.zzzChecking = false
+					a.zzzFetching = true
+				})
+			},
+		)
 		a.publish(func() {
+			a.zzzChecking = false
 			a.zzzFetching = false
 			if err != nil {
 				a.zzzStatus = ""

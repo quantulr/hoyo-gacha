@@ -14,7 +14,8 @@ type game struct {
 	body         func(a *app, c *ui.Context, pal *palette, g *game)
 	channelColor func(typ string, pal *palette) ui.Color
 	refresh      func(a *app)                          // 不支持自动获取时为空
-	fetching     func(a *app) (status string, ok bool) // 刷新状态
+	fetching     func(a *app) (status string, ok bool) // 刷新状态；ok 时显示进度弹框
+	busy         func(a *app) bool                     // 是否在后台刷新；为空时看 fetching
 	load         func() (*gachaData, error)
 	apply        func(a *app, d *gachaData, err error)
 	annotate     func(d *gachaData) // 读入后的补充处理，如标记歪

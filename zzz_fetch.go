@@ -70,15 +70,16 @@ type zzzAPIURL struct {
 }
 
 // refreshZZZData 从游戏日志取得临时链接，抓取全部频段并合并写回应用数据目录。
-func refreshZZZData(progress func(string)) (*gachaRefreshResult, error) {
+// ready 在 authkey 通过校验、开始翻页前调用，界面据此才显示刷新弹框。
+func refreshZZZData(progress func(string), ready func()) (*gachaRefreshResult, error) {
 	root, err := mygo.App.Path(mygo.PathUserData)
 	if err != nil {
 		return nil, err
 	}
-	return refreshZZZDir(filepath.Join(root, "data", "zzz"), progress)
+	return refreshZZZDir(filepath.Join(root, "data", "zzz"), progress, ready)
 }
 
-func refreshZZZDir(dir string, progress func(string)) (*gachaRefreshResult, error) {
+func refreshZZZDir(dir string, progress func(string), ready func()) (*gachaRefreshResult, error) {
 	raw, err := findZZZLogURL(zzzLogPaths())
 	if err != nil {
 		return nil, err
@@ -87,7 +88,7 @@ func refreshZZZDir(dir string, progress func(string)) (*gachaRefreshResult, erro
 	if err != nil {
 		return nil, err
 	}
-	return fetchZZZAll(dir, api, progress)
+	return fetchZZZAll(dir, api, progress, ready)
 }
 
 // zzzLogPaths 返回国服与国际服客户端可能写入的玩家日志路径。
@@ -191,8 +192,10 @@ func zzzFetchUID(api *zzzAPIURL) (string, string, error) {
 	return "", region, nil
 }
 
-// fetchZZZAll 抓取全部频段，与本地数据合并后写回 dir。
-func fetchZZZAll(dir string, api *zzzAPIURL, progress func(string)) (*gachaRefreshResult, error) {
+// fetchZZZAll 抓取全部频段，与本地数据合并后写回 dir。ready 在 authkey
+// 通过校验、开始翻页前调用。
+func fetchZZZAll(dir string, api *zzzAPIURL, progress func(string),
+	ready func()) (*gachaRefreshResult, error) {
 	if progress == nil {
 		progress = func(string) {}
 	}
@@ -220,6 +223,9 @@ func fetchZZZAll(dir string, api *zzzAPIURL, progress func(string)) (*gachaRefre
 		targetTZ = local.RegionTimeZone
 	}
 	latest := gachaLatestIDs(local)
+	if ready != nil {
+		ready()
+	}
 
 	fetched := &gachaExport{UID: uid, Lang: api.lang, RegionTimeZone: targetTZ}
 	for _, typ := range zzzChannelOrder {

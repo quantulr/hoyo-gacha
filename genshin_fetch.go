@@ -74,15 +74,16 @@ type genshinLogFile struct {
 }
 
 // refreshGenshinData 从游戏日志与网页缓存取得临时链接，抓取全部祈愿并写回。
-func refreshGenshinData(progress func(string)) (*gachaRefreshResult, error) {
+// ready 在 authkey 通过校验、开始翻页前调用，界面据此才显示刷新弹框。
+func refreshGenshinData(progress func(string), ready func()) (*gachaRefreshResult, error) {
 	root, err := mygo.App.Path(mygo.PathUserData)
 	if err != nil {
 		return nil, err
 	}
-	return refreshGenshinDir(filepath.Join(root, "data", "genshin"), progress)
+	return refreshGenshinDir(filepath.Join(root, "data", "genshin"), progress, ready)
 }
 
-func refreshGenshinDir(dir string, progress func(string)) (*gachaRefreshResult, error) {
+func refreshGenshinDir(dir string, progress func(string), ready func()) (*gachaRefreshResult, error) {
 	raw, err := findGenshinLogURL(genshinLogFiles())
 	if err != nil {
 		return nil, err
@@ -91,7 +92,7 @@ func refreshGenshinDir(dir string, progress func(string)) (*gachaRefreshResult, 
 	if err != nil {
 		return nil, err
 	}
-	return fetchGenshinAll(dir, api, progress)
+	return fetchGenshinAll(dir, api, progress, ready)
 }
 
 // genshinLogFiles 返回国服、国际服客户端与云游戏可能写入的日志文件。
@@ -268,8 +269,10 @@ func genshinRegionZone(uid string) int {
 	}
 }
 
-// fetchGenshinAll 抓取全部祈愿频段，与本地数据合并后写回 dir。
-func fetchGenshinAll(dir string, api *genshinAPIURL, progress func(string)) (*gachaRefreshResult, error) {
+// fetchGenshinAll 抓取全部祈愿频段，与本地数据合并后写回 dir。ready 在
+// authkey 通过校验、开始翻页前调用。
+func fetchGenshinAll(dir string, api *genshinAPIURL, progress func(string),
+	ready func()) (*gachaRefreshResult, error) {
 	if progress == nil {
 		progress = func(string) {}
 	}
@@ -298,6 +301,9 @@ func fetchGenshinAll(dir string, api *genshinAPIURL, progress func(string)) (*ga
 		targetZone = local.RegionTimeZone
 	}
 	latest := gachaLatestIDs(local)
+	if ready != nil {
+		ready()
+	}
 
 	fetched := &gachaExport{UID: uid, Lang: api.lang, RegionTimeZone: targetZone}
 	for _, typ := range genshinChannelOrder {
