@@ -26,7 +26,7 @@ const zzzFixture = `{
   ]
 }`
 
-func testZZZData(t *testing.T) *zzzData {
+func testZZZData(t *testing.T) *gachaData {
 	t.Helper()
 	d, err := parseZZZ([]byte(zzzFixture))
 	if err != nil {
@@ -169,14 +169,14 @@ func TestGachaGroupMarshal(t *testing.T) {
 func TestFilterPullRanks(t *testing.T) {
 	d := testZZZData(t)
 	recs := d.Channels[0].Records // 最新在前：B2、S1、A1、B1
-	if got := filterPullRanks(recs, zzzFilterAll); len(got) != 4 {
+	if got := filterPullRanks(recs, pullFilterAll); len(got) != 4 {
 		t.Errorf("全部筛选 %d 条，期望 4 条", len(got))
 	}
-	sa := filterPullRanks(recs, zzzFilterSA)
+	sa := filterPullRanks(recs, pullFilterSA)
 	if len(sa) != 2 || sa[0].Name != "S1" || sa[1].Name != "A1" {
 		t.Errorf("S+A 筛选 %+v", sa)
 	}
-	s := filterPullRanks(recs, zzzFilterS)
+	s := filterPullRanks(recs, pullFilterS)
 	if len(s) != 1 || s[0].Name != "S1" {
 		t.Errorf("仅 S 筛选 %+v", s)
 	}

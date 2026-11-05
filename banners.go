@@ -153,7 +153,7 @@ func zzzBannerName(s string) string {
 }
 
 // annotateZZZLost 标记限定频段里不是当期 UP 的 S 级记录。
-func annotateZZZLost(d *zzzData, banners []zzzBanner) {
+func annotateZZZLost(d *gachaData, banners []zzzBanner) {
 	for i := range d.Channels {
 		ch := &d.Channels[i]
 		if zzzBannerChannel(ch.Type) == "" {
@@ -161,7 +161,7 @@ func annotateZZZLost(d *zzzData, banners []zzzBanner) {
 		}
 		for j := range ch.Records {
 			r := &ch.Records[j]
-			if r.RankType != "4" {
+			if r.Tier != 0 {
 				continue
 			}
 			t, err := zzzBannerTime(r.Time)

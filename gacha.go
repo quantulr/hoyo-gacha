@@ -67,31 +67,32 @@ type gachaExport struct {
 type pullRecord struct {
 	gachaRecord
 	Pity int  // 这一抽是距上一个 S 级后的第几抽
+	Tier int  // 0 = S，1 = A，2 = B
 	Lost bool // S 级不是当期 UP；常驻、邦布或缺少卡池数据时为 false
 }
 
 // 记录页的筛选模式。
 const (
-	zzzFilterAll = iota // 全部
-	zzzFilterSA         // S + A
-	zzzFilterS          // 仅 S
+	pullFilterAll = iota // 全部
+	pullFilterSA         // S + A
+	pullFilterS          // 仅 S
 )
 
 // filterPullRanks 按等级保留记录。
 func filterPullRanks(recs []pullRecord, mode int) []pullRecord {
-	if mode == zzzFilterAll {
+	if mode == pullFilterAll {
 		return recs
 	}
 	out := make([]pullRecord, 0, len(recs))
 	for _, r := range recs {
-		if r.RankType == "4" || (mode == zzzFilterSA && r.RankType == "3") {
+		if r.Tier == 0 || (mode == pullFilterSA && r.Tier == 1) {
 			out = append(out, r)
 		}
 	}
 	return out
 }
 
-// channelStats 是一个频段的统计。
+// channelStats 是一个卡池频道的统计。
 type channelStats struct {
 	Type     string
 	Name     string
@@ -115,8 +116,31 @@ type sPull struct {
 	Pity     int
 }
 
-// zzzData 是绝区零抽卡数据的汇总。
-type zzzData struct {
+// gachaSpec 是一款游戏的导出等级与保底规则。
+type gachaSpec struct {
+	sRank string
+	aRank string
+	bRank string
+	pity  map[string]int // 各频段的 S 级保底抽数，缺省 90
+}
+
+var gachaSpecs = map[string]gachaSpec{
+	"zzz": {
+		sRank: "4",
+		aRank: "3",
+		bRank: "2",
+		pity:  map[string]int{"3": 80, "103": 80, "5": 80},
+	},
+	"starrail": {
+		sRank: "5",
+		aRank: "4",
+		bRank: "3",
+		pity:  map[string]int{"12": 80, "22": 80, "2": 50},
+	},
+}
+
+// gachaData 是一款游戏抽卡数据的汇总。
+type gachaData struct {
 	UID        string
 	LastTime   string
 	TotalPulls int
@@ -126,39 +150,49 @@ type zzzData struct {
 	SRecords   []sPull // 按时间从新到旧
 }
 
-func (d *zzzData) SRate() float64 {
+func (d *gachaData) SRate() float64 {
 	if d.TotalPulls == 0 {
 		return 0
 	}
 	return float64(d.TotalS) / float64(d.TotalPulls)
 }
 
-func (d *zzzData) ARate() float64 {
+func (d *gachaData) ARate() float64 {
 	if d.TotalPulls == 0 {
 		return 0
 	}
 	return float64(d.TotalA) / float64(d.TotalPulls)
 }
 
-func (d *zzzData) Average() float64 {
+func (d *gachaData) Average() float64 {
 	if d.TotalS == 0 {
 		return 0
 	}
 	return float64(d.TotalPulls) / float64(d.TotalS)
 }
 
-// loadZZZData 从应用数据目录读取绝区零的抽卡数据。
-func loadZZZData() (*zzzData, error) {
+// loadGameData 从应用数据目录读取一款游戏的抽卡数据。
+func loadGameData(game string) (*gachaData, error) {
 	root, err := mygo.App.Path(mygo.PathUserData)
 	if err != nil {
 		return nil, err
 	}
-	return loadZZZDir(filepath.Join(root, "data", "zzz"))
+	return loadGachaDir(filepath.Join(root, "data", game), game)
 }
 
-// loadZZZDir 从 dir 读取 config.json 指向的抽卡文件。
-func loadZZZDir(dir string) (*zzzData, error) {
-	path, err := zzzFilePath(dir)
+// loadZZZData 从应用数据目录读取绝区零的抽卡数据。
+func loadZZZData() (*gachaData, error) {
+	return loadGameData("zzz")
+}
+
+// loadZZZDir 从 dir 读取 config.json 指向的绝区零抽卡文件。
+func loadZZZDir(dir string) (*gachaData, error) {
+	return loadGachaDir(dir, "zzz")
+}
+
+// loadGachaDir 从 dir 读取 config.json 指向的抽卡文件。
+func loadGachaDir(dir, game string) (*gachaData, error) {
+	path, err := gachaFilePath(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -166,20 +200,22 @@ func loadZZZDir(dir string) (*zzzData, error) {
 	if err != nil {
 		return nil, err
 	}
-	d, err := parseZZZ(data)
+	d, err := parseGacha(data, game)
 	if err != nil {
 		return nil, err
 	}
 	// 卡池数据只用于标记歪，读取失败不影响抽卡记录本身。
-	if set, err := loadZZZBanners(); err == nil {
-		annotateZZZLost(d, set.Banners)
+	if game == "zzz" {
+		if set, err := loadZZZBanners(); err == nil {
+			annotateZZZLost(d, set.Banners)
+		}
 	}
 	return d, nil
 }
 
-// zzzFilePath 找到要读取的抽卡文件：config.json 的 current 账号，
+// gachaFilePath 找到要读取的抽卡文件：config.json 的 current 账号，
 // 否则取最近修改的 gacha-list-*.json。
-func zzzFilePath(dir string) (string, error) {
+func gachaFilePath(dir string) (string, error) {
 	var cfg struct {
 		Current string `json:"current"`
 	}
@@ -209,17 +245,27 @@ func zzzFilePath(dir string) (string, error) {
 	return matches[0], nil
 }
 
-// parseZZZ 解析抽卡导出文件并汇总统计。
-func parseZZZ(data []byte) (*zzzData, error) {
+// parseGacha 解析抽卡导出文件并汇总统计。
+func parseGacha(data []byte, game string) (*gachaData, error) {
 	var exp gachaExport
 	if err := json.Unmarshal(data, &exp); err != nil {
 		return nil, err
 	}
-	return newZZZData(&exp), nil
+	return newGachaData(&exp, game), nil
 }
 
-// newZZZData 按频段汇总记录，并算出保底与出金历史。
-func newZZZData(exp *gachaExport) *zzzData {
+// parseZZZ 解析绝区零抽卡导出文件。
+func parseZZZ(data []byte) (*gachaData, error) {
+	return parseGacha(data, "zzz")
+}
+
+// parseStarRail 解析崩坏：星穹铁道抽卡导出文件。
+func parseStarRail(data []byte) (*gachaData, error) {
+	return parseGacha(data, "starrail")
+}
+
+// newGachaData 按频段汇总记录，并算出保底与出金历史。
+func newGachaData(exp *gachaExport, game string) *gachaData {
 	names := make(map[string]string, len(exp.TypeMap))
 	order := make([]string, 0, len(exp.TypeMap))
 	for _, p := range exp.TypeMap {
@@ -240,13 +286,14 @@ func newZZZData(exp *gachaExport) *zzzData {
 		}
 	}
 
-	d := &zzzData{UID: exp.UID}
+	spec := gachaSpecs[game]
+	d := &gachaData{UID: exp.UID}
 	for _, typ := range order {
 		recs := groups[typ]
 		if len(recs) == 0 {
 			continue
 		}
-		ch := channelStats{Type: typ, Name: names[typ], HardPity: hardPity(typ)}
+		ch := channelStats{Type: typ, Name: names[typ], HardPity: hardPity(game, typ)}
 		// 导出文件通常已按时间升序；排序保证保底计算正确。
 		sort.SliceStable(recs, func(i, j int) bool {
 			if recs[i].Time != recs[j].Time {
@@ -258,12 +305,21 @@ func newZZZData(exp *gachaExport) *zzzData {
 		for _, r := range recs {
 			pity++
 			ch.Pulls++
-			ch.Records = append(ch.Records, pullRecord{gachaRecord: r, Pity: pity})
+			tier := 2
+			switch r.RankType {
+			case spec.sRank:
+				tier = 0
+			case spec.aRank:
+				tier = 1
+			case spec.bRank:
+				tier = 2
+			}
+			ch.Records = append(ch.Records, pullRecord{gachaRecord: r, Pity: pity, Tier: tier})
 			if r.Time > d.LastTime {
 				d.LastTime = r.Time
 			}
-			switch r.RankType {
-			case "4":
+			switch tier {
+			case 0:
 				ch.S++
 				d.TotalS++
 				d.SRecords = append(d.SRecords, sPull{
@@ -275,10 +331,10 @@ func newZZZData(exp *gachaExport) *zzzData {
 					Pity:     pity,
 				})
 				pity = 0
-			case "3":
+			case 1:
 				ch.A++
 				d.TotalA++
-			case "2":
+			default:
 				ch.B++
 			}
 		}
@@ -302,11 +358,15 @@ func newZZZData(exp *gachaExport) *zzzData {
 	return d
 }
 
-// hardPity 是各频段的 S 级保底抽数。
-func hardPity(typ string) int {
-	switch typ {
-	case "3", "103", "5": // 音擎、音擎回响、邦布
-		return 80
+// newZZZData 按绝区零频段汇总记录。
+func newZZZData(exp *gachaExport) *gachaData {
+	return newGachaData(exp, "zzz")
+}
+
+// hardPity 是一款游戏各频道的 S 级保底抽数。
+func hardPity(game, typ string) int {
+	if p, ok := gachaSpecs[game].pity[typ]; ok {
+		return p
 	}
 	return 90
 }

@@ -44,16 +44,26 @@ var games = []game{
 // ownControls 表示由界面绘制窗口按钮，而不是交给系统标题栏。
 var ownControls = runtime.GOOS != "darwin"
 
+// gachaView 是抽卡页的视图状态。
+type gachaView struct {
+	page     int    // 0 概览，1 记录
+	chanType string // 记录页选中的卡池频道
+	filter   int    // 记录页筛选：0 全部，1 S+A，2 S
+}
+
 // app 是窗口展示的状态：当前选中的游戏、窗口本身和已读入的数据。
 type app struct {
 	selected  string
 	win       *mygo.Window
-	zzz       *zzzData
+	zzz       *gachaData
 	zzzErr    error
 	zzzLoaded bool
-	zzzView   int    // 0 概览，1 记录
-	zzzChan   string // 记录页选中的频段
-	zzzFilter int    // 记录页筛选：0 全部，1 S+A，2 S
+	zzzView   gachaView
+
+	starrail       *gachaData
+	starrailErr    error
+	starrailLoaded bool
+	starrailView   gachaView
 
 	zzzFetching bool   // 正在从游戏接口刷新
 	zzzStatus   string // 刷新进度或结果
@@ -191,9 +201,12 @@ func (a *app) content(c *ui.Context, pal *palette, g *game) {
 				}
 				a.windowControls(c, pal)
 			})
-			if g.id == "zzz" {
+			switch g.id {
+			case "zzz":
 				a.zzzBody(c, pal, g)
-			} else {
+			case "starrail":
+				a.starrailBody(c, pal, g)
+			default:
 				a.emptyBody(c, pal, g)
 			}
 		})
@@ -220,25 +233,38 @@ func (a *app) zzzBody(c *ui.Context, pal *palette, g *game) {
 	if a.zzzStatus != "" {
 		a.statusRow(c, pal)
 	}
+	a.gachaBody(c, pal, g, a.zzz, a.zzzErr, a.zzzLoaded, &a.zzzView,
+		"先在游戏内打开「调频记录」页，再点右上角「刷新」即可读取最新记录。")
+}
+
+// starrailBody 按数据状态展示崩坏：星穹铁道的抽卡概览。
+func (a *app) starrailBody(c *ui.Context, pal *palette, g *game) {
+	a.gachaBody(c, pal, g, a.starrail, a.starrailErr, a.starrailLoaded, &a.starrailView,
+		"把 gacha-list-*.json 放到应用数据目录的 starrail 文件夹后重启即可。")
+}
+
+// gachaBody 按数据状态展示一款游戏的抽卡概览和记录。
+func (a *app) gachaBody(c *ui.Context, pal *palette, g *game, d *gachaData, err error, loaded bool,
+	view *gachaView, emptyTip string) {
 	switch {
-	case !a.zzzLoaded:
+	case !loaded:
 		ui.Column(c).Grow(1).MinHeight(0).Center().Gap(12).Children(func() {
 			ui.Spinner(c).Label("正在读取抽卡记录")
-			ui.Text(c, "正在读取绝区零抽卡记录…").FontSize(13).TextColor(pal.textMuted)
+			ui.Textf(c, "正在读取%s抽卡记录…", g.name).FontSize(13).TextColor(pal.textMuted)
 		})
-	case a.zzzErr != nil:
-		a.messageBody(c, pal, g, "无法读取绝区零抽卡数据", a.zzzErr.Error())
-	case a.zzz == nil || a.zzz.TotalPulls == 0:
-		a.messageBody(c, pal, g, "还没有抽卡记录", "先在游戏内打开「调频记录」页，再点右上角「刷新」即可读取最新记录。")
+	case err != nil:
+		a.messageBody(c, pal, g, "无法读取"+g.name+"抽卡数据", err.Error())
+	case d == nil || d.TotalPulls == 0:
+		a.messageBody(c, pal, g, "还没有抽卡记录", emptyTip)
 	default:
 		ui.Column(c).Grow(1).MinHeight(0).Children(func() {
 			ui.Row(c).Shrink(0).Padding(14, 28, 0, 28).Children(func() {
-				viewSwitch(c, pal, &a.zzzView)
+				viewSwitch(c, pal, &view.page)
 			})
-			if a.zzzView == 1 {
-				a.zzzRecords(c, pal, a.zzz)
+			if view.page == 1 {
+				a.gachaRecords(c, pal, g, d, view)
 			} else {
-				a.zzzOverview(c, pal, a.zzz)
+				a.gachaOverview(c, pal, g, d)
 			}
 		})
 	}
@@ -363,8 +389,8 @@ func (a *app) messageBody(c *ui.Context, pal *palette, g *game, title, detail st
 	})
 }
 
-// zzzOverview 是绝区零的仪表盘：概览、频段保底和最近出金。
-func (a *app) zzzOverview(c *ui.Context, pal *palette, d *zzzData) {
+// gachaOverview 是仪表盘：概览、保底和最近出金。
+func (a *app) gachaOverview(c *ui.Context, pal *palette, g *game, d *gachaData) {
 	ui.Scroll(c).Grow(1).MinHeight(0).Padding(14, 28, 24, 28).Gap(22).Children(func() {
 		ui.Column(c).Gap(10).Children(func() {
 			meta := "最后记录 " + formatDate(d.LastTime)
@@ -372,12 +398,16 @@ func (a *app) zzzOverview(c *ui.Context, pal *palette, d *zzzData) {
 				meta = "UID " + d.UID + " · " + meta
 			}
 			sectionHeading(c, pal, "抽卡概览", meta)
-			statCards(c, pal, d)
+			statCards(c, pal, g, d)
 		})
 		ui.Column(c).Gap(8).Children(func() {
-			sectionHeading(c, pal, "频段保底", "自上次 S 级起")
+			title := "频段保底"
+			if g.id == "starrail" {
+				title = "跃迁保底"
+			}
+			sectionHeading(c, pal, title, "自上次 S 级起")
 			for _, ch := range d.Channels {
-				channelRow(c, pal, ch)
+				channelRow(c, pal, g, ch)
 			}
 		})
 		ui.Column(c).Gap(8).Children(func() {
@@ -397,23 +427,24 @@ func (a *app) zzzOverview(c *ui.Context, pal *palette, d *zzzData) {
 	})
 }
 
-// zzzRecords 展示选中频段的完整抽卡记录。
-func (a *app) zzzRecords(c *ui.Context, pal *palette, d *zzzData) {
+// gachaRecords 展示选中频段的完整抽卡记录。
+func (a *app) gachaRecords(c *ui.Context, pal *palette, g *game, d *gachaData, view *gachaView) {
 	if len(d.Channels) == 0 {
 		return
 	}
-	ch := a.recordChannel(d)
-	recs := filterPullRanks(ch.Records, a.zzzFilter)
+	ch := recordChannel(d, view)
+	recs := filterPullRanks(ch.Records, view.filter)
 	ui.Column(c).Grow(1).MinHeight(0).Padding(14, 28, 20, 28).Gap(12).Children(func() {
 		sectionHeading(c, pal, "卡池记录", fmt.Sprintf("共 %s 条 · 最新在前", formatInt(len(recs))))
 		ui.Row(c).AlignItems(ui.Start).Gap(12).Children(func() {
-			a.channelChips(c, pal, d, ch).Grow(1)
-			rankFilter(c, pal, &a.zzzFilter)
+			a.channelChips(c, pal, g, d, ch, view).Grow(1)
+			rankFilter(c, pal, &view.filter)
 		})
 		panel := ui.Column(c).Grow(1).MinHeight(0).Background(pal.chip).Radius(12).
 			Padding(4, 14).Clip()
 		panel.Children(func() {
-			list := ui.List(c.Key(fmt.Sprintf("zzz-records-%s-%d", ch.Type, a.zzzFilter)), nil, len(recs), func(i int) {
+			key := fmt.Sprintf("gacha-records-%s-%s-%d", g.id, ch.Type, view.filter)
+			list := ui.List(c.Key(key), nil, len(recs), func(i int) {
 				recordRow(c, pal, recs[i])
 			}).Grow(1).MinHeight(0).Label("抽卡记录")
 			list.Children(func() {
@@ -430,22 +461,22 @@ func (a *app) zzzRecords(c *ui.Context, pal *palette, d *zzzData) {
 }
 
 // recordChannel 返回记录页选中的频段，默认第一个。
-func (a *app) recordChannel(d *zzzData) *channelStats {
+func recordChannel(d *gachaData, view *gachaView) *channelStats {
 	for i := range d.Channels {
-		if d.Channels[i].Type == a.zzzChan {
+		if d.Channels[i].Type == view.chanType {
 			return &d.Channels[i]
 		}
 	}
 	return &d.Channels[0]
 }
 
-func (a *app) channelChips(c *ui.Context, pal *palette, d *zzzData, selected *channelStats) ui.Element {
+func (a *app) channelChips(c *ui.Context, pal *palette, g *game, d *gachaData, selected *channelStats, view *gachaView) ui.Element {
 	return ui.Row(c).Wrap().Gap(6).Children(func() {
 		for i := range d.Channels {
 			ch := &d.Channels[i]
-			color := channelColor(ch.Type, pal)
+			color := channelColor(ch.Type, g.id, pal)
 			on := ch.Type == selected.Type
-			b := ui.ButtonBase(c.Key("zzz-chan-"+ch.Type)).Height(28).Padding(0, 11).Gap(6).
+			b := ui.ButtonBase(c.Key("gacha-chan-"+g.id+"-"+ch.Type)).Height(28).Padding(0, 11).Gap(6).
 				Radius(8).AlignItems(ui.Center).Label(ch.Name)
 			bg := pal.chip
 			fg := pal.textMuted
@@ -469,22 +500,22 @@ func (a *app) channelChips(c *ui.Context, pal *palette, d *zzzData, selected *ch
 					FontFeatures("tnum").SingleLine()
 			})
 			if b.Clicked() && !on {
-				a.zzzChan = ch.Type
+				view.chanType = ch.Type
 			}
 		}
 	})
 }
 
 func recordRow(c *ui.Context, pal *palette, r pullRecord) {
-	fg, bg := rankColors(r.RankType, pal)
+	fg, bg := rankColors(r.Tier, pal)
 	ui.Row(c).Height(38).Shrink(0).Gap(10).AlignItems(ui.Center).
 		BorderWidth(0, 0, 1, 0).BorderColor(pal.divider).Children(func() {
 		ui.Box(c).Size(20, 20).Shrink(0).Radius(6).Background(bg).Center().Children(func() {
-			ui.Text(c, rankLabel(r.RankType)).FontSize(10.5).FontWeight(700).TextColor(fg)
+			ui.Text(c, rankLabel(r.Tier)).FontSize(10.5).FontWeight(700).TextColor(fg)
 		})
 		ui.Text(c, r.Name).FontSize(13.5).FontWeight(500).TextColor(pal.text).
 			SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
-		if r.RankType == "4" && r.Lost {
+		if r.Tier == 0 && r.Lost {
 			ui.Box(c).Height(16).Shrink(0).Padding(0, 5).Radius(4).
 				Background(pal.danger.Alpha(0.12)).Center().Children(func() {
 				ui.Text(c, "歪").FontSize(10).FontWeight(650).TextColor(pal.danger).SingleLine()
@@ -499,11 +530,11 @@ func recordRow(c *ui.Context, pal *palette, r pullRecord) {
 	})
 }
 
-func rankColors(rank string, pal *palette) (fg, bg ui.Color) {
-	switch rank {
-	case "4":
+func rankColors(tier int, pal *palette) (fg, bg ui.Color) {
+	switch tier {
+	case 0:
 		return pal.attention, pal.attention.Alpha(0.14)
-	case "3":
+	case 1:
 		c := ui.Hex("#8b7bd8")
 		if pal.dark {
 			c = ui.Hex("#a99bf0")
@@ -514,11 +545,11 @@ func rankColors(rank string, pal *palette) (fg, bg ui.Color) {
 	}
 }
 
-func rankLabel(rank string) string {
-	switch rank {
-	case "4":
+func rankLabel(tier int) string {
+	switch tier {
+	case 0:
 		return "S"
-	case "3":
+	case 1:
 		return "A"
 	default:
 		return "B"
@@ -536,14 +567,18 @@ func sectionHeading(c *ui.Context, pal *palette, title, note string) {
 	})
 }
 
-func statCards(c *ui.Context, pal *palette, d *zzzData) {
+func statCards(c *ui.Context, pal *palette, g *game, d *gachaData) {
+	all := "全部频段"
+	if g.id == "starrail" {
+		all = "全部跃迁"
+	}
 	cards := []struct {
 		label string
 		value string
 		note  string
 		color ui.Color
 	}{
-		{"总抽数", formatInt(d.TotalPulls), "全部频段", pal.text},
+		{"总抽数", formatInt(d.TotalPulls), all, pal.text},
 		{"S 级", formatInt(d.TotalS), fmt.Sprintf("出货率 %.2f%%", d.SRate()*100), pal.attention},
 		{"A 级", formatInt(d.TotalA), fmt.Sprintf("出货率 %.2f%%", d.ARate()*100), pal.text},
 		{"平均出金", averageText(d.Average()), "抽 / S 级", pal.text},
@@ -576,8 +611,8 @@ func statCard(c *ui.Context, pal *palette, label, value, note string, color ui.C
 	})
 }
 
-func channelRow(c *ui.Context, pal *palette, ch channelStats) {
-	color := channelColor(ch.Type, pal)
+func channelRow(c *ui.Context, pal *palette, g *game, ch channelStats) {
+	color := channelColor(ch.Type, g.id, pal)
 	ui.Row(c).Height(58).Shrink(0).Padding(0, 14).Gap(12).AlignItems(ui.Center).
 		Background(pal.chip).Radius(10).Children(func() {
 		ui.Box(c).Size(8, 8).Shrink(0).Radius(4).Background(color)
@@ -625,20 +660,32 @@ func sPullRow(c *ui.Context, pal *palette, s sPull) {
 	})
 }
 
-func channelColor(typ string, pal *palette) ui.Color {
+func channelColor(typ, game string, pal *palette) ui.Color {
+	purple := ui.Hex("#8b7bd8")
+	teal := ui.Hex("#5f9e94")
+	if pal.dark {
+		purple = ui.Hex("#a99bf0")
+		teal = ui.Hex("#7fc4b8")
+	}
+	if game == "starrail" {
+		switch typ {
+		case "11", "21": // 角色活动跃迁、角色联动跃迁
+			return pal.attention
+		case "12", "22": // 光锥活动跃迁、光锥联动跃迁
+			return purple
+		case "2": // 新手跃迁
+			return teal
+		default: // 常驻跃迁
+			return pal.textMuted
+		}
+	}
 	switch typ {
 	case "2", "102":
 		return pal.attention
 	case "3", "103":
-		if pal.dark {
-			return ui.Hex("#a99bf0")
-		}
-		return ui.Hex("#8b7bd8")
+		return purple
 	case "5":
-		if pal.dark {
-			return ui.Hex("#7fc4b8")
-		}
-		return ui.Hex("#5f9e94")
+		return teal
 	default:
 		return pal.textMuted
 	}
@@ -760,9 +807,11 @@ func main() {
 		win := a.win
 		// 数据文件在后台读取，读完再交给界面线程。
 		go func() {
-			d, err := loadZZZData()
+			zzz, zzzErr := loadZZZData()
+			sr, srErr := loadStarRailData()
 			win.Update(func() {
-				a.zzz, a.zzzErr, a.zzzLoaded = d, err, true
+				a.zzz, a.zzzErr, a.zzzLoaded = zzz, zzzErr, true
+				a.starrail, a.starrailErr, a.starrailLoaded = sr, srErr, true
 			})
 		}()
 	})
