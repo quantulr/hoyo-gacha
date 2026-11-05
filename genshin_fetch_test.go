@@ -204,13 +204,9 @@ func TestFetchGenshinAll(t *testing.T) {
 	defer func() { genshinHTTPClient, genshinSleep = oldClient, oldSleep }()
 
 	api := &genshinAPIURL{domain: server.URL, query: "authkey=test&lang=zh-cn&game_biz=hk4e_cn", lang: "zh-cn"}
-	ready := false
-	res, err := fetchGenshinAll(dir, api, nil, func() { ready = true })
+	res, err := fetchGenshinAll(dir, api, nil)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if !ready {
-		t.Error("authkey 校验通过后应调用 ready")
 	}
 	if res.UID != "42" || res.Added != 2 || res.Total != 5 {
 		t.Errorf("结果 %+v", res)
@@ -289,31 +285,9 @@ func TestFetchGenshinAuthkeyExpired(t *testing.T) {
 	defer func() { genshinHTTPClient, genshinSleep = oldClient, oldSleep }()
 
 	api := &genshinAPIURL{domain: server.URL, query: "authkey=test", lang: "zh-cn"}
-	ready := false
-	_, err := fetchGenshinAll(t.TempDir(), api, nil, func() { ready = true })
+	_, err := fetchGenshinAll(t.TempDir(), api, nil)
 	if !errors.Is(err, errGenshinAuthkey) {
 		t.Fatalf("错误 = %v，期望 authkey 失效", err)
-	}
-	if ready {
-		t.Error("authkey 失效时不应进入翻页阶段")
-	}
-}
-
-func TestGenshinCheckingNoOverlay(t *testing.T) {
-	a := newApp()
-	a.selected = "genshin"
-	a.genshin = testGenshinData(t)
-	a.genshinLoaded = true
-	a.genshinChecking = true
-	a.genshinStatus = "正在确认游戏账号…"
-	tt := ui.NewTester(a.view, 960, 680)
-	if tt.HasText("正在刷新抽卡记录") {
-		t.Errorf("校验阶段不应显示刷新弹框，现有 %q", tt.Texts())
-	}
-	for _, text := range []string{"正在确认游戏账号…", "刷新中…"} {
-		if !tt.HasText(text) {
-			t.Errorf("缺少文本 %q，现有 %q", text, tt.Texts())
-		}
 	}
 }
 

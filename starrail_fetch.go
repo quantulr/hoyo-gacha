@@ -68,16 +68,15 @@ type starRailAPIURL struct {
 }
 
 // refreshStarRailData 从游戏日志与网页缓存取得临时链接，抓取全部跃迁并写回。
-// ready 在 authkey 通过校验、开始翻页前调用，界面据此才显示刷新弹框。
-func refreshStarRailData(progress func(string), ready func()) (*gachaRefreshResult, error) {
+func refreshStarRailData(progress func(string)) (*gachaRefreshResult, error) {
 	root, err := mygo.App.Path(mygo.PathUserData)
 	if err != nil {
 		return nil, err
 	}
-	return refreshStarRailDir(filepath.Join(root, "data", "starrail"), progress, ready)
+	return refreshStarRailDir(filepath.Join(root, "data", "starrail"), progress)
 }
 
-func refreshStarRailDir(dir string, progress func(string), ready func()) (*gachaRefreshResult, error) {
+func refreshStarRailDir(dir string, progress func(string)) (*gachaRefreshResult, error) {
 	raw, err := findStarRailLogURL(starRailLogPaths())
 	if err != nil {
 		return nil, err
@@ -86,7 +85,7 @@ func refreshStarRailDir(dir string, progress func(string), ready func()) (*gacha
 	if err != nil {
 		return nil, err
 	}
-	return fetchStarRailAll(dir, api, progress, ready)
+	return fetchStarRailAll(dir, api, progress)
 }
 
 // starRailLogPaths 返回国服与国际服客户端可能写入的玩家日志路径。
@@ -240,10 +239,8 @@ func starRailFetchUID(api *starRailAPIURL) (string, string, int, error) {
 	return "", region, zone, nil
 }
 
-// fetchStarRailAll 抓取全部跃迁频段，与本地数据合并后写回 dir。ready 在
-// authkey 通过校验、开始翻页前调用。
-func fetchStarRailAll(dir string, api *starRailAPIURL, progress func(string),
-	ready func()) (*gachaRefreshResult, error) {
+// fetchStarRailAll 抓取全部跃迁频段，与本地数据合并后写回 dir。
+func fetchStarRailAll(dir string, api *starRailAPIURL, progress func(string)) (*gachaRefreshResult, error) {
 	if progress == nil {
 		progress = func(string) {}
 	}
@@ -272,9 +269,6 @@ func fetchStarRailAll(dir string, api *starRailAPIURL, progress func(string),
 		targetZone = local.RegionTimeZone
 	}
 	latest := gachaLatestIDs(local)
-	if ready != nil {
-		ready()
-	}
 
 	fetched := &gachaExport{UID: uid, Lang: api.lang, RegionTimeZone: targetZone}
 	for _, typ := range starRailChannelOrder {

@@ -31,7 +31,6 @@ type app struct {
 	genshinLoaded bool
 	genshinView   gachaView
 
-	genshinChecking bool   // 正在校验 authkey，尚未显示进度弹框
 	genshinFetching bool   // 正在从游戏接口刷新
 	genshinStatus   string // 刷新进度或结果
 	genshinToast    string // 待显示的请求错误，显示后清空
@@ -41,7 +40,6 @@ type app struct {
 	starrailLoaded bool
 	starrailView   gachaView
 
-	starrailChecking bool   // 正在校验 authkey，尚未显示进度弹框
 	starrailFetching bool   // 正在从游戏接口刷新
 	starrailStatus   string // 刷新进度或结果
 	starrailToast    string // 待显示的请求错误，显示后清空
@@ -51,7 +49,6 @@ type app struct {
 	zzzLoaded bool
 	zzzView   gachaView
 
-	zzzChecking bool   // 正在校验 authkey，尚未显示进度弹框
 	zzzFetching bool   // 正在从游戏接口刷新
 	zzzStatus   string // 刷新进度或结果
 	zzzToast    string // 待显示的请求错误，显示后清空
@@ -195,13 +192,8 @@ func (a *app) content(c *ui.Context, pal *palette, g *game) {
 					SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
 				ui.Spacer(c)
 				if g.refresh != nil && g.fetching != nil {
-					busy := false
-					if g.busy != nil {
-						busy = g.busy(a)
-					} else {
-						_, busy = g.fetching(a)
-					}
-					a.refreshButton(c, pal, g.id+"-refresh", busy, func() { g.refresh(a) })
+					_, fetching := g.fetching(a)
+					a.refreshButton(c, pal, g.id+"-refresh", fetching, func() { g.refresh(a) })
 				}
 				a.windowControls(c, pal)
 			})

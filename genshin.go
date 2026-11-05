@@ -15,7 +15,6 @@ var genshinGame = game{
 	channelColor: genshinChannelColor,
 	refresh:      (*app).refreshGenshin,
 	fetching:     (*app).genshinFetchState,
-	busy:         (*app).genshinBusy,
 	load:         loadGenshinData,
 	apply:        (*app).applyGenshinData,
 }
@@ -46,39 +45,22 @@ func (a *app) genshinBody(c *ui.Context, pal *palette, g *game) {
 		"先在游戏内打开「祈愿记录」页，再点右上角「刷新」即可读取最新记录。")
 }
 
-// genshinFetchState 返回刷新进度；只有 authkey 校验通过后才返回 ok，
-// 避免链接失效时先闪一下进度弹框。
 func (a *app) genshinFetchState() (string, bool) {
 	return a.genshinStatus, a.genshinFetching
 }
 
-// genshinBusy 表示原神正在后台刷新，用于禁用刷新按钮。
-func (a *app) genshinBusy() bool {
-	return a.genshinChecking || a.genshinFetching
-}
-
 // refreshGenshin 在后台读取日志与网页缓存并抓取记录，完成后刷新界面。
 func (a *app) refreshGenshin() {
-	if a.genshinBusy() {
+	if a.genshinFetching {
 		return
 	}
-	a.genshinChecking = true
+	a.genshinFetching = true
 	a.genshinStatus = "正在读取游戏日志与缓存…"
 	go func() {
-		res, err := refreshGenshinData(
-			func(msg string) {
-				a.publish(func() { a.genshinStatus = msg })
-			},
-			func() {
-				// authkey 已通过校验，从这里开始显示进度弹框。
-				a.publish(func() {
-					a.genshinChecking = false
-					a.genshinFetching = true
-				})
-			},
-		)
+		res, err := refreshGenshinData(func(msg string) {
+			a.publish(func() { a.genshinStatus = msg })
+		})
 		a.publish(func() {
-			a.genshinChecking = false
 			a.genshinFetching = false
 			if err != nil {
 				a.genshinStatus = ""

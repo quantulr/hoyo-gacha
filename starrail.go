@@ -15,7 +15,6 @@ var starRailGame = game{
 	channelColor: starRailChannelColor,
 	refresh:      (*app).refreshStarRail,
 	fetching:     (*app).starRailFetchState,
-	busy:         (*app).starRailBusy,
 	load:         loadStarRailData,
 	apply:        (*app).applyStarRailData,
 }
@@ -51,39 +50,22 @@ func (a *app) starrailBody(c *ui.Context, pal *palette, g *game) {
 		"先在游戏内打开「跃迁记录」页，再点右上角「刷新」即可读取最新记录。")
 }
 
-// starRailFetchState 返回刷新进度；只有 authkey 校验通过后才返回 ok，
-// 避免链接失效时先闪一下进度弹框。
 func (a *app) starRailFetchState() (string, bool) {
 	return a.starrailStatus, a.starrailFetching
 }
 
-// starRailBusy 表示星穹铁道正在后台刷新，用于禁用刷新按钮。
-func (a *app) starRailBusy() bool {
-	return a.starrailChecking || a.starrailFetching
-}
-
 // refreshStarRail 在后台读取日志与网页缓存并抓取记录，完成后刷新界面。
 func (a *app) refreshStarRail() {
-	if a.starRailBusy() {
+	if a.starrailFetching {
 		return
 	}
-	a.starrailChecking = true
+	a.starrailFetching = true
 	a.starrailStatus = "正在读取游戏日志与缓存…"
 	go func() {
-		res, err := refreshStarRailData(
-			func(msg string) {
-				a.publish(func() { a.starrailStatus = msg })
-			},
-			func() {
-				// authkey 已通过校验，从这里开始显示进度弹框。
-				a.publish(func() {
-					a.starrailChecking = false
-					a.starrailFetching = true
-				})
-			},
-		)
+		res, err := refreshStarRailData(func(msg string) {
+			a.publish(func() { a.starrailStatus = msg })
+		})
 		a.publish(func() {
-			a.starrailChecking = false
 			a.starrailFetching = false
 			if err != nil {
 				a.starrailStatus = ""
