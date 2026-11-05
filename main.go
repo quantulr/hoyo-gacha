@@ -461,6 +461,12 @@ func recordRow(c *ui.Context, pal *palette, r pullRecord) {
 		})
 		ui.Text(c, r.Name).FontSize(13.5).FontWeight(500).TextColor(pal.text).
 			SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
+		if r.RankType == "4" && r.Lost {
+			ui.Box(c).Height(16).Shrink(0).Padding(0, 5).Radius(4).
+				Background(pal.danger.Alpha(0.12)).Center().Children(func() {
+				ui.Text(c, "歪").FontSize(10).FontWeight(650).TextColor(pal.danger).SingleLine()
+			})
+		}
 		ui.Text(c, r.ItemType).FontSize(11.5).TextColor(pal.textFaint).SingleLine().Shrink(0)
 		ui.Spacer(c)
 		ui.Textf(c, "第 %d 抽", r.Pity).FontSize(11.5).TextColor(pal.textMuted).

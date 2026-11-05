@@ -66,7 +66,8 @@ type gachaExport struct {
 // pullRecord 是一条带保底计数的抽卡记录。
 type pullRecord struct {
 	gachaRecord
-	Pity int // 这一抽是距上一个 S 级后的第几抽
+	Pity int  // 这一抽是距上一个 S 级后的第几抽
+	Lost bool // S 级不是当期 UP；常驻、邦布或缺少卡池数据时为 false
 }
 
 // channelStats 是一个频段的统计。
@@ -144,7 +145,15 @@ func loadZZZDir(dir string) (*zzzData, error) {
 	if err != nil {
 		return nil, err
 	}
-	return parseZZZ(data)
+	d, err := parseZZZ(data)
+	if err != nil {
+		return nil, err
+	}
+	// 卡池数据只用于标记歪，读取失败不影响抽卡记录本身。
+	if set, err := loadZZZBanners(); err == nil {
+		annotateZZZLost(d, set.Banners)
+	}
+	return d, nil
 }
 
 // zzzFilePath 找到要读取的抽卡文件：config.json 的 current 账号，
