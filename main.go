@@ -430,10 +430,14 @@ func (a *app) channelChips(c *ui.Context, pal *palette, d *zzzData, selected *ch
 				Radius(8).AlignItems(ui.Center).Label(ch.Name)
 			bg := pal.chip
 			fg := pal.textMuted
+			weight := 500
 			switch {
 			case on:
-				bg = color.Alpha(0.16)
+				bg = color.Alpha(0.18)
 				fg = pal.text
+				weight = 600
+				// 常驻频段的颜色接近灰色，仅靠浅色底不够明显。
+				b.Border(1, color.Alpha(0.4))
 			case b.Hovered():
 				bg = pal.rowHover
 				fg = pal.text
@@ -441,7 +445,7 @@ func (a *app) channelChips(c *ui.Context, pal *palette, d *zzzData, selected *ch
 			b.Background(bg)
 			b.Children(func() {
 				ui.Box(c).Size(6, 6).Shrink(0).Radius(3).Background(color)
-				ui.Text(c, ch.Name).FontSize(12).FontWeight(500).TextColor(fg).SingleLine()
+				ui.Text(c, ch.Name).FontSize(12).FontWeight(weight).TextColor(fg).SingleLine()
 				ui.Text(c, formatInt(ch.Pulls)).FontSize(11).TextColor(pal.textFaint).
 					FontFeatures("tnum").SingleLine()
 			})
