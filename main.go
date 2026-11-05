@@ -53,6 +53,10 @@ type app struct {
 	zzzLoaded bool
 	zzzView   int    // 0 概览，1 记录
 	zzzChan   string // 记录页选中的频段
+
+	zzzFetching bool   // 正在从游戏接口刷新
+	zzzStatus   string // 刷新进度或结果
+	zzzToast    string // 待显示的请求错误，显示后清空
 }
 
 // newApp 返回默认选中第一款游戏的应用状态。
@@ -73,6 +77,11 @@ func (a *app) current() *game {
 func (a *app) view(c *ui.Context) {
 	pal := paletteFor(c)
 	applyTheme(c, pal)
+	if a.zzzToast != "" {
+		// 每个请求错误只弹一次，避免每帧重复播报。
+		c.Toast(a.zzzToast)
+		a.zzzToast = ""
+	}
 	a.shortcuts(c)
 
 	base, glow := backdrop(pal)
@@ -176,6 +185,9 @@ func (a *app) content(c *ui.Context, pal *palette, g *game) {
 				ui.Text(c, "· "+g.tagline).FontSize(12.5).TextColor(pal.textFaint).
 					SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
 				ui.Spacer(c)
+				if g.id == "zzz" {
+					a.refreshButton(c, pal)
+				}
 				a.windowControls(c, pal)
 			})
 			if g.id == "zzz" {
@@ -204,6 +216,9 @@ const recentSCount = 12
 
 // zzzBody 按数据状态展示绝区零的抽卡概览。
 func (a *app) zzzBody(c *ui.Context, pal *palette, g *game) {
+	if a.zzzStatus != "" {
+		a.statusRow(c, pal)
+	}
 	switch {
 	case !a.zzzLoaded:
 		ui.Column(c).Grow(1).MinHeight(0).Center().Gap(12).Children(func() {
@@ -213,7 +228,7 @@ func (a *app) zzzBody(c *ui.Context, pal *palette, g *game) {
 	case a.zzzErr != nil:
 		a.messageBody(c, pal, g, "无法读取绝区零抽卡数据", a.zzzErr.Error())
 	case a.zzz == nil || a.zzz.TotalPulls == 0:
-		a.messageBody(c, pal, g, "还没有抽卡记录", "数据文件里没有可显示的记录。")
+		a.messageBody(c, pal, g, "还没有抽卡记录", "先在游戏内打开「调频记录」页，再点右上角「刷新」即可读取最新记录。")
 	default:
 		ui.Column(c).Grow(1).MinHeight(0).Children(func() {
 			ui.Row(c).Shrink(0).Padding(14, 28, 0, 28).Children(func() {
@@ -226,6 +241,79 @@ func (a *app) zzzBody(c *ui.Context, pal *palette, g *game) {
 			}
 		})
 	}
+}
+
+// refreshButton 重新从游戏日志抓取抽卡记录；抓取期间禁用。
+func (a *app) refreshButton(c *ui.Context, pal *palette) {
+	label := "刷新"
+	if a.zzzFetching {
+		label = "刷新中…"
+	}
+	b := ui.ButtonBase(c.Key("zzz-refresh")).Height(24).Shrink(0).Padding(0, 10).
+		Radius(6).AlignItems(ui.Center).Label(label).Disabled(a.zzzFetching)
+	bg := pal.chip
+	fg := pal.textMuted
+	switch {
+	case a.zzzFetching:
+		fg = pal.textFaint
+	case b.Hovered():
+		bg = pal.rowHover
+		fg = pal.text
+	}
+	b.Background(bg)
+	b.Children(func() {
+		ui.Text(c, label).FontSize(12).FontWeight(500).TextColor(fg).SingleLine()
+	})
+	if b.Clicked() {
+		a.refreshZZZ()
+	}
+}
+
+// statusRow 显示刷新进度或结果。
+func (a *app) statusRow(c *ui.Context, pal *palette) {
+	ui.Row(c).Shrink(0).Padding(8, 28, 0, 28).Children(func() {
+		ui.Text(c, a.zzzStatus).FontSize(11.5).TextColor(pal.textFaint).
+			SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
+	})
+}
+
+// refreshZZZ 在后台读取日志并抓取记录，完成后回到主线程刷新界面。
+func (a *app) refreshZZZ() {
+	if a.zzzFetching {
+		return
+	}
+	a.zzzFetching = true
+	a.zzzStatus = "正在读取游戏日志…"
+	go func() {
+		res, err := refreshZZZData(func(msg string) {
+			a.publish(func() { a.zzzStatus = msg })
+		})
+		a.publish(func() {
+			a.zzzFetching = false
+			if err != nil {
+				a.zzzStatus = ""
+				a.zzzToast = "刷新失败：" + err.Error()
+				return
+			}
+			d, loadErr := loadZZZData()
+			a.zzz, a.zzzErr, a.zzzLoaded = d, loadErr, true
+			if loadErr != nil {
+				a.zzzStatus = ""
+				a.zzzToast = "刷新成功，但读取数据失败：" + loadErr.Error()
+				return
+			}
+			a.zzzStatus = res.Message()
+		})
+	}()
+}
+
+// publish 把后台结果交给界面线程；没有窗口时（测试）直接执行。
+func (a *app) publish(fn func()) {
+	if a.win != nil {
+		a.win.Update(fn)
+		return
+	}
+	fn()
 }
 
 // viewSwitch 是概览与记录之间的切换。

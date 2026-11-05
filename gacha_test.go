@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -104,7 +105,7 @@ func TestZZZView(t *testing.T) {
 	a.zzz = testZZZData(t)
 	a.zzzLoaded = true
 	tt := ui.NewTester(a.view, 960, 680)
-	for _, text := range []string{"抽卡概览", "频段保底", "最近出金", "独家频段", "保底 1 / 90", "第 3 抽 · 2024-01-03"} {
+	for _, text := range []string{"抽卡概览", "频段保底", "最近出金", "独家频段", "保底 1 / 90", "第 3 抽 · 2024-01-03", "刷新"} {
 		if !tt.HasText(text) {
 			t.Errorf("缺少文本 %q，现有 %q", text, tt.Texts())
 		}
@@ -130,6 +131,38 @@ func TestZZZView(t *testing.T) {
 	tt.SetSize(720, 480)
 	if !tt.HasText("卡池记录") || !tt.HasText("S2") {
 		t.Errorf("最小尺寸缺少内容，文本 %q", tt.Texts())
+	}
+}
+
+func TestZZZToast(t *testing.T) {
+	a := newApp()
+	a.selected = "zzz"
+	a.zzz = testZZZData(t)
+	a.zzzLoaded = true
+	a.zzzToast = "刷新失败：没有找到调频记录链接"
+	tt := ui.NewTester(a.view, 960, 680)
+	if !tt.HasText("刷新失败：没有找到调频记录链接") {
+		t.Errorf("缺少 toast，现有 %q", tt.Texts())
+	}
+	if a.zzzToast != "" {
+		t.Error("toast 应只显示一次")
+	}
+}
+
+func TestGachaGroupMarshal(t *testing.T) {
+	empty, err := json.Marshal(gachaGroup{Type: "1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(empty) != `["1",[]]` {
+		t.Errorf("空频段 = %s", empty)
+	}
+	full, err := json.Marshal(gachaGroup{Type: "2", Records: []gachaRecord{{ID: "1"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(full) != `["2",[{"id":"1","item_id":"","item_type":"","name":"","rank_type":"","time":"","gacha_type":""}]]` {
+		t.Errorf("有记录时 = %s", full)
 	}
 }
 

@@ -19,6 +19,7 @@ type gachaRecord struct {
 	RankType  string `json:"rank_type"` // 4 = S 级，3 = A 级，2 = B 级
 	Time      string `json:"time"`      // 本地时间，YYYY-MM-DD HH:MM:SS
 	GachaType string `json:"gacha_type"`
+	Count     string `json:"count,omitempty"`
 }
 
 // gachaGroup 是 result 里的一组记录：频段类型和它的记录。
@@ -42,12 +43,24 @@ func (g *gachaGroup) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(pair[1], &g.Records)
 }
 
+// MarshalJSON 把分组写回 ["频段类型", [记录…]] 形式。
+// 没有记录的频段写成空数组，而不是 null，导出文件才能被其他工具读取。
+func (g gachaGroup) MarshalJSON() ([]byte, error) {
+	recs := g.Records
+	if recs == nil {
+		recs = []gachaRecord{}
+	}
+	return json.Marshal([]any{g.Type, recs})
+}
+
 // gachaExport 是 gacha-list-<uid>.json 的格式。
 type gachaExport struct {
-	UID     string       `json:"uid"`
-	Lang    string       `json:"lang"`
-	TypeMap [][2]string  `json:"typeMap"`
-	Result  []gachaGroup `json:"result"`
+	UID            string       `json:"uid"`
+	Lang           string       `json:"lang"`
+	TypeMap        [][2]string  `json:"typeMap"`
+	Result         []gachaGroup `json:"result"`
+	RegionTimeZone int          `json:"region_time_zone,omitempty"`
+	Time           int64        `json:"time,omitempty"` // 抓取时间，毫秒
 }
 
 // pullRecord 是一条带保底计数的抽卡记录。
