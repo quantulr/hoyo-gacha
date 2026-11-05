@@ -259,6 +259,21 @@ func TestFetchStarRailAuthkeyExpired(t *testing.T) {
 	}
 }
 
+func TestStarRailRefreshOverlay(t *testing.T) {
+	a := newApp()
+	a.selected = "starrail"
+	a.starrail = testStarRailData(t)
+	a.starrailLoaded = true
+	a.starrailFetching = true
+	a.starrailStatus = "正在读取角色活动跃迁（第 2 页）…"
+	tt := ui.NewTester(a.view, 960, 680)
+	for _, text := range []string{"正在刷新抽卡记录", "正在读取角色活动跃迁（第 2 页）…"} {
+		if !tt.HasText(text) {
+			t.Errorf("缺少文本 %q，现有 %q", text, tt.Texts())
+		}
+	}
+}
+
 func TestStarRailRefreshButton(t *testing.T) {
 	a := newApp()
 	a.selected = "starrail"

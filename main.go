@@ -116,6 +116,9 @@ func (a *app) view(c *ui.Context) {
 		a.sidebar(c, pal)
 		a.content(c, pal, a.current())
 	})
+	if status, ok := a.refreshStatus(); ok {
+		a.refreshOverlay(c, pal, status)
+	}
 }
 
 // shortcuts 让 Cmd/Ctrl+1、+2、+3 切换游戏，和 Kero 的会话快捷键一致。
@@ -261,7 +264,7 @@ func gachaTerms(g *game) (all, pity string) {
 
 // zzzBody 按数据状态展示绝区零的抽卡概览。
 func (a *app) zzzBody(c *ui.Context, pal *palette, g *game) {
-	if a.zzzStatus != "" {
+	if a.zzzStatus != "" && !a.zzzFetching {
 		a.statusRow(c, pal, a.zzzStatus)
 	}
 	a.gachaBody(c, pal, g, a.zzz, a.zzzErr, a.zzzLoaded, &a.zzzView,
@@ -276,7 +279,7 @@ func (a *app) genshinBody(c *ui.Context, pal *palette, g *game) {
 
 // starrailBody 按数据状态展示崩坏：星穹铁道的抽卡概览。
 func (a *app) starrailBody(c *ui.Context, pal *palette, g *game) {
-	if a.starrailStatus != "" {
+	if a.starrailStatus != "" && !a.starrailFetching {
 		a.statusRow(c, pal, a.starrailStatus)
 	}
 	a.gachaBody(c, pal, g, a.starrail, a.starrailErr, a.starrailLoaded, &a.starrailView,
@@ -341,6 +344,41 @@ func (a *app) statusRow(c *ui.Context, pal *palette, status string) {
 	ui.Row(c).Shrink(0).Padding(8, 28, 0, 28).Children(func() {
 		ui.Text(c, status).FontSize(11.5).TextColor(pal.textFaint).
 			SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
+	})
+}
+
+// refreshStatus 返回正在进行的刷新状态；没有刷新时 ok 为 false。
+func (a *app) refreshStatus() (string, bool) {
+	switch {
+	case a.starrailFetching:
+		return a.starrailStatus, true
+	case a.zzzFetching:
+		return a.zzzStatus, true
+	}
+	return "", false
+}
+
+// refreshOverlay 在刷新期间盖住窗口，显示旋转动画和当前进度。
+func (a *app) refreshOverlay(c *ui.Context, pal *palette, status string) {
+	ui.Overlay(c, func() {
+		ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).Center().
+			Modal().Background(ui.RGBA(0, 0, 0, 0.35)).Children(func() {
+			ui.Column(c).Role(ui.RoleDialog).Label("正在刷新抽卡记录").
+				Width(360).Padding(18, 20).Gap(14).Radius(14).
+				Background(pal.card).Shadow(0, 12, 36, 0, ui.RGBA(0, 0, 0, 0.28)).
+				Children(func() {
+					ui.Row(c).Gap(14).AlignItems(ui.Center).Children(func() {
+						ui.Spinner(c).Size(26, 26).Shrink(0).TextColor(pal.accent).
+							Label("正在刷新抽卡记录")
+						ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
+							ui.Text(c, "正在刷新抽卡记录").FontSize(14).FontWeight(600).
+								TextColor(pal.text).SingleLine()
+							ui.Text(c, status).FontSize(12.5).TextColor(pal.textMuted).
+								SingleLine().Ellipsis("…")
+						})
+					})
+				})
+		})
 	})
 }
 
