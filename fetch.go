@@ -94,20 +94,21 @@ func (r *apiGachaRecord) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// zzzLogData 是接口响应里的 data 部分。
-type zzzLogData struct {
-	List   []apiGachaRecord `json:"list"`
-	Region string           `json:"region"`
+// gachaLogData 是接口响应里的 data 部分。
+type gachaLogData struct {
+	List           []apiGachaRecord `json:"list"`
+	Region         string           `json:"region"`
+	RegionTimeZone int              `json:"region_time_zone"`
 }
 
-// zzzRefreshResult 是一次刷新的结果，用来提示用户更新了多少条。
-type zzzRefreshResult struct {
+// gachaRefreshResult 是一次刷新的结果，用来提示用户更新了多少条。
+type gachaRefreshResult struct {
 	UID   string
 	Added int
 	Total int
 }
 
-func (r *zzzRefreshResult) Message() string {
+func (r *gachaRefreshResult) Message() string {
 	if r.Added == 0 {
 		return fmt.Sprintf("已是最新，共 %s 条记录", formatInt(r.Total))
 	}
@@ -115,7 +116,7 @@ func (r *zzzRefreshResult) Message() string {
 }
 
 // refreshZZZData 从游戏日志取得临时链接，抓取全部频段并合并写回应用数据目录。
-func refreshZZZData(progress func(string)) (*zzzRefreshResult, error) {
+func refreshZZZData(progress func(string)) (*gachaRefreshResult, error) {
 	root, err := mygo.App.Path(mygo.PathUserData)
 	if err != nil {
 		return nil, err
@@ -123,7 +124,7 @@ func refreshZZZData(progress func(string)) (*zzzRefreshResult, error) {
 	return refreshZZZDir(filepath.Join(root, "data", "zzz"), progress)
 }
 
-func refreshZZZDir(dir string, progress func(string)) (*zzzRefreshResult, error) {
+func refreshZZZDir(dir string, progress func(string)) (*gachaRefreshResult, error) {
 	raw, err := findZZZLogURL(zzzLogPaths())
 	if err != nil {
 		return nil, err
@@ -183,7 +184,7 @@ func findZZZLogURL(paths []string) (string, error) {
 func parseZZZLogURL(raw string) (*zzzAPIURL, error) {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
-		return nil, fmt.Errorf("无法解析调频记录链接：%w", err)
+		return nil, fmt.Errorf("无法解析调频记录链接：%w", sanitizeURLError(err))
 	}
 	q, err := url.ParseQuery(u.RawQuery)
 	if err != nil {
@@ -237,7 +238,7 @@ func zzzFetchUID(api *zzzAPIURL) (string, string, error) {
 }
 
 // fetchZZZAll 抓取全部频段，与本地数据合并后写回 dir。
-func fetchZZZAll(dir string, api *zzzAPIURL, progress func(string)) (*zzzRefreshResult, error) {
+func fetchZZZAll(dir string, api *zzzAPIURL, progress func(string)) (*gachaRefreshResult, error) {
 	if progress == nil {
 		progress = func(string) {}
 	}
@@ -253,7 +254,7 @@ func fetchZZZAll(dir string, api *zzzAPIURL, progress func(string)) (*zzzRefresh
 	if !ok {
 		return nil, fmt.Errorf("不支持此服务器：%s", region)
 	}
-	local, err := loadZZZLocal(dir, uid)
+	local, err := loadGachaLocal(dir, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -264,7 +265,7 @@ func fetchZZZAll(dir string, api *zzzAPIURL, progress func(string)) (*zzzRefresh
 	if local != nil && local.RegionTimeZone != 0 {
 		targetTZ = local.RegionTimeZone
 	}
-	latest := zzzLatestIDs(local)
+	latest := gachaLatestIDs(local)
 
 	fetched := &gachaExport{UID: uid, Lang: api.lang, RegionTimeZone: targetTZ}
 	for _, typ := range zzzChannelOrder {
@@ -274,7 +275,7 @@ func fetchZZZAll(dir string, api *zzzAPIURL, progress func(string)) (*zzzRefresh
 			return nil, err
 		}
 		for i := range recs {
-			recs[i].Time = convertZZZTime(recs[i].Time, serverTZ, targetTZ)
+			recs[i].Time = convertGachaTime(recs[i].Time, serverTZ, targetTZ)
 		}
 		fetched.Result = append(fetched.Result, gachaGroup{Type: typ, Records: recs})
 		fetched.TypeMap = append(fetched.TypeMap, [2]string{typ, name})
@@ -289,7 +290,7 @@ func fetchZZZAll(dir string, api *zzzAPIURL, progress func(string)) (*zzzRefresh
 	for _, group := range merged.Result {
 		total += len(group.Records)
 	}
-	return &zzzRefreshResult{UID: uid, Added: added, Total: total}, nil
+	return &gachaRefreshResult{UID: uid, Added: added, Total: total}, nil
 }
 
 // zzzFetchChannel 按 end_id 翻页抓取一个频段。latest 是本地最新的记录 id，
@@ -314,7 +315,7 @@ func zzzFetchChannel(api *zzzAPIURL, typ, name string, latest *big.Int, progress
 				rec.Count = "1"
 			}
 			records = append(records, rec)
-			if latest != nil && zzzIDEquals(rec.ID, latest) {
+			if latest != nil && gachaIDEquals(rec.ID, latest) {
 				hitLatest = true
 			}
 		}
@@ -336,7 +337,7 @@ func zzzFetchChannel(api *zzzAPIURL, typ, name string, latest *big.Int, progress
 }
 
 // zzzRequestRetry 请求一页记录，网络或接口错误时重试；authkey 失效直接返回。
-func zzzRequestRetry(api *zzzAPIURL, typ string, page int, endID string, size int) (*zzzLogData, error) {
+func zzzRequestRetry(api *zzzAPIURL, typ string, page int, endID string, size int) (*gachaLogData, error) {
 	var lastErr error
 	for attempt := 0; attempt < zzzFetchTries; attempt++ {
 		if attempt > 0 {
@@ -354,12 +355,12 @@ func zzzRequestRetry(api *zzzAPIURL, typ string, page int, endID string, size in
 	return nil, lastErr
 }
 
-func zzzRequest(api *zzzAPIURL, typ string, page int, endID string, size int) (*zzzLogData, error) {
+func zzzRequest(api *zzzAPIURL, typ string, page int, endID string, size int) (*gachaLogData, error) {
 	endpoint := fmt.Sprintf("%s%s?%s&real_gacha_type=%s&page=%d&size=%d&end_id=%s",
 		api.domain, zzzAPIPath, api.query, url.QueryEscape(typ), page, size, url.QueryEscape(endID))
 	resp, err := zzzHTTPClient.Get(endpoint)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("请求调频记录失败：%w", sanitizeURLError(err))
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -369,7 +370,7 @@ func zzzRequest(api *zzzAPIURL, typ string, page int, endID string, size int) (*
 	var payload struct {
 		Retcode int        `json:"retcode"`
 		Message string     `json:"message"`
-		Data    zzzLogData `json:"data"`
+		Data    gachaLogData `json:"data"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&payload); err != nil {
 		return nil, fmt.Errorf("无法解析接口响应：%w", err)
@@ -387,8 +388,8 @@ func zzzRequest(api *zzzAPIURL, typ string, page int, endID string, size int) (*
 	return &payload.Data, nil
 }
 
-// zzzLatestIDs 返回本地各频段最大的记录 id。
-func zzzLatestIDs(exp *gachaExport) map[string]*big.Int {
+// gachaLatestIDs 返回本地各频段最大的记录 id。
+func gachaLatestIDs(exp *gachaExport) map[string]*big.Int {
 	out := make(map[string]*big.Int)
 	if exp == nil {
 		return out
@@ -407,13 +408,13 @@ func zzzLatestIDs(exp *gachaExport) map[string]*big.Int {
 	return out
 }
 
-func zzzIDEquals(id string, n *big.Int) bool {
+func gachaIDEquals(id string, n *big.Int) bool {
 	v, ok := new(big.Int).SetString(id, 10)
 	return ok && v.Cmp(n) == 0
 }
 
-// convertZZZTime 把服务器本地时间换算到账号记录的时区。
-func convertZZZTime(s string, from, to int) string {
+// convertGachaTime 把服务器本地时间换算到账号记录的时区。
+func convertGachaTime(s string, from, to int) string {
 	if from == to {
 		return s
 	}
@@ -425,8 +426,8 @@ func convertZZZTime(s string, from, to int) string {
 	return t.Format("2006-01-02 15:04:05")
 }
 
-// loadZZZLocal 读取同一 UID 已有的导出文件，没有则返回 nil。
-func loadZZZLocal(dir, uid string) (*gachaExport, error) {
+// loadGachaLocal 读取同一 UID 已有的导出文件，没有则返回 nil。
+func loadGachaLocal(dir, uid string) (*gachaExport, error) {
 	path := filepath.Join(dir, "gacha-list-"+uid+".json")
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -445,14 +446,21 @@ func loadZZZLocal(dir, uid string) (*gachaExport, error) {
 	return &exp, nil
 }
 
-// mergeZZZExport 按记录 id 去重合并本地与抓取到的数据，按 id 升序排列。
-// 返回值里 Added 是抓取到的、本地没有的记录数。
+// mergeZZZExport 按绝区零频段合并本地与抓取到的数据。
 func mergeZZZExport(local, fetched *gachaExport) (*gachaExport, int) {
+	return mergeGachaExport(local, fetched, zzzChannelOrder, zzzChannelNames, "频段 ")
+}
+
+// mergeGachaExport 按记录 id 去重合并本地与抓取到的数据，按 id 升序排列。
+// order 与 names 是这款游戏的固定频段顺序和名称；返回值里 Added 是抓取到的、
+// 本地没有的记录数。
+func mergeGachaExport(local, fetched *gachaExport, baseOrder []string, baseNames map[string]string,
+	fallbackPrefix string) (*gachaExport, int) {
 	if fetched == nil {
 		fetched = &gachaExport{}
 	}
-	names := make(map[string]string, len(zzzChannelNames))
-	for typ, name := range zzzChannelNames {
+	names := make(map[string]string, len(baseNames))
+	for typ, name := range baseNames {
 		names[typ] = name
 	}
 	for _, pair := range fetched.TypeMap {
@@ -468,7 +476,7 @@ func mergeZZZExport(local, fetched *gachaExport) (*gachaExport, int) {
 		}
 	}
 
-	order := append([]string{}, zzzChannelOrder...)
+	order := append([]string{}, baseOrder...)
 	known := make(map[string]bool, len(order))
 	for _, typ := range order {
 		known[typ] = true
@@ -559,10 +567,10 @@ func mergeZZZExport(local, fetched *gachaExport) (*gachaExport, int) {
 			}
 			list = append(list, rec)
 		}
-		sortZZZRecords(list)
+		sortGachaRecords(list)
 		name := names[typ]
 		if name == "" {
-			name = "频段 " + typ
+			name = fallbackPrefix + typ
 		}
 		merged.Result = append(merged.Result, gachaGroup{Type: typ, Records: list})
 		merged.TypeMap = append(merged.TypeMap, [2]string{typ, name})
@@ -570,8 +578,8 @@ func mergeZZZExport(local, fetched *gachaExport) (*gachaExport, int) {
 	return merged, added
 }
 
-// sortZZZRecords 按数字大小的 id 升序排列；解析失败时退回字符串比较。
-func sortZZZRecords(recs []gachaRecord) {
+// sortGachaRecords 按数字大小的 id 升序排列；解析失败时退回字符串比较。
+func sortGachaRecords(recs []gachaRecord) {
 	sort.SliceStable(recs, func(i, j int) bool {
 		a, okA := new(big.Int).SetString(recs[i].ID, 10)
 		b, okB := new(big.Int).SetString(recs[j].ID, 10)
@@ -582,8 +590,13 @@ func sortZZZRecords(recs []gachaRecord) {
 	})
 }
 
-// saveZZZExport 写入 gacha-list-<uid>.json，并把 config.json 的 current 指向该账号。
+// saveZZZExport 写入绝区零的抽卡导出文件。
 func saveZZZExport(dir string, exp *gachaExport) error {
+	return saveGachaExport(dir, exp)
+}
+
+// saveGachaExport 写入 gacha-list-<uid>.json，并把 config.json 的 current 指向该账号。
+func saveGachaExport(dir string, exp *gachaExport) error {
 	if exp.UID == "" {
 		return errors.New("抽卡数据缺少 UID")
 	}
@@ -599,11 +612,11 @@ func saveZZZExport(dir string, exp *gachaExport) error {
 	if err := writeFileAtomic(filepath.Join(dir, "gacha-list-"+exp.UID+".json"), buf.Bytes()); err != nil {
 		return err
 	}
-	return saveZZZCurrent(dir, exp.UID)
+	return saveGachaCurrent(dir, exp.UID)
 }
 
-// saveZZZCurrent 更新 config.json 的当前账号，保留其他配置项。
-func saveZZZCurrent(dir, uid string) error {
+// saveGachaCurrent 更新 config.json 的当前账号，保留其他配置项。
+func saveGachaCurrent(dir, uid string) error {
 	path := filepath.Join(dir, "config.json")
 	cfg := map[string]any{}
 	if data, err := os.ReadFile(path); err == nil {
@@ -615,6 +628,15 @@ func saveZZZCurrent(dir, uid string) error {
 		return err
 	}
 	return writeFileAtomic(path, data)
+}
+
+// sanitizeURLError 剥掉 net/url 错误里的完整链接，避免 authkey 出现在界面或日志里。
+func sanitizeURLError(err error) error {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		return ue.Err
+	}
+	return err
 }
 
 // writeFileAtomic 先写临时文件再改名，避免中途失败留下半个文件。

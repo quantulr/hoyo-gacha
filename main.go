@@ -66,6 +66,10 @@ type app struct {
 	starrailLoaded bool
 	starrailView   gachaView
 
+	starrailFetching bool   // 正在从游戏接口刷新
+	starrailStatus   string // 刷新进度或结果
+	starrailToast    string // 待显示的请求错误，显示后清空
+
 	zzz       *gachaData
 	zzzErr    error
 	zzzLoaded bool
@@ -98,6 +102,10 @@ func (a *app) view(c *ui.Context) {
 		// 每个请求错误只弹一次，避免每帧重复播报。
 		c.Toast(a.zzzToast)
 		a.zzzToast = ""
+	}
+	if a.starrailToast != "" {
+		c.Toast(a.starrailToast)
+		a.starrailToast = ""
 	}
 	a.shortcuts(c)
 
@@ -202,8 +210,11 @@ func (a *app) content(c *ui.Context, pal *palette, g *game) {
 				ui.Text(c, "· "+g.tagline).FontSize(12.5).TextColor(pal.textFaint).
 					SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
 				ui.Spacer(c)
-				if g.id == "zzz" {
-					a.refreshButton(c, pal)
+				switch g.id {
+				case "starrail":
+					a.refreshButton(c, pal, "starrail-refresh", a.starrailFetching, a.refreshStarRail)
+				case "zzz":
+					a.refreshButton(c, pal, "zzz-refresh", a.zzzFetching, a.refreshZZZ)
 				}
 				a.windowControls(c, pal)
 			})
@@ -251,7 +262,7 @@ func gachaTerms(g *game) (all, pity string) {
 // zzzBody 按数据状态展示绝区零的抽卡概览。
 func (a *app) zzzBody(c *ui.Context, pal *palette, g *game) {
 	if a.zzzStatus != "" {
-		a.statusRow(c, pal)
+		a.statusRow(c, pal, a.zzzStatus)
 	}
 	a.gachaBody(c, pal, g, a.zzz, a.zzzErr, a.zzzLoaded, &a.zzzView,
 		"先在游戏内打开「调频记录」页，再点右上角「刷新」即可读取最新记录。")
@@ -265,8 +276,11 @@ func (a *app) genshinBody(c *ui.Context, pal *palette, g *game) {
 
 // starrailBody 按数据状态展示崩坏：星穹铁道的抽卡概览。
 func (a *app) starrailBody(c *ui.Context, pal *palette, g *game) {
+	if a.starrailStatus != "" {
+		a.statusRow(c, pal, a.starrailStatus)
+	}
 	a.gachaBody(c, pal, g, a.starrail, a.starrailErr, a.starrailLoaded, &a.starrailView,
-		"把 gacha-list-*.json 放到应用数据目录的 starrail 文件夹后重启即可。")
+		"先在游戏内打开「跃迁记录」页，再点右上角「刷新」即可读取最新记录。")
 }
 
 // gachaBody 按数据状态展示一款游戏的抽卡概览和记录。
@@ -297,17 +311,17 @@ func (a *app) gachaBody(c *ui.Context, pal *palette, g *game, d *gachaData, err 
 }
 
 // refreshButton 重新从游戏日志抓取抽卡记录；抓取期间禁用。
-func (a *app) refreshButton(c *ui.Context, pal *palette) {
+func (a *app) refreshButton(c *ui.Context, pal *palette, key string, fetching bool, refresh func()) {
 	label := "刷新"
-	if a.zzzFetching {
+	if fetching {
 		label = "刷新中…"
 	}
-	b := ui.ButtonBase(c.Key("zzz-refresh")).Height(24).Shrink(0).Padding(0, 10).
-		Radius(6).AlignItems(ui.Center).Label(label).Disabled(a.zzzFetching)
+	b := ui.ButtonBase(c.Key(key)).Height(24).Shrink(0).Padding(0, 10).
+		Radius(6).AlignItems(ui.Center).Label(label).Disabled(fetching)
 	bg := pal.chip
 	fg := pal.textMuted
 	switch {
-	case a.zzzFetching:
+	case fetching:
 		fg = pal.textFaint
 	case b.Hovered():
 		bg = pal.rowHover
@@ -318,14 +332,14 @@ func (a *app) refreshButton(c *ui.Context, pal *palette) {
 		ui.Text(c, label).FontSize(12).FontWeight(500).TextColor(fg).SingleLine()
 	})
 	if b.Clicked() {
-		a.refreshZZZ()
+		refresh()
 	}
 }
 
 // statusRow 显示刷新进度或结果。
-func (a *app) statusRow(c *ui.Context, pal *palette) {
+func (a *app) statusRow(c *ui.Context, pal *palette, status string) {
 	ui.Row(c).Shrink(0).Padding(8, 28, 0, 28).Children(func() {
-		ui.Text(c, a.zzzStatus).FontSize(11.5).TextColor(pal.textFaint).
+		ui.Text(c, status).FontSize(11.5).TextColor(pal.textFaint).
 			SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
 	})
 }
@@ -356,6 +370,36 @@ func (a *app) refreshZZZ() {
 				return
 			}
 			a.zzzStatus = res.Message()
+		})
+	}()
+}
+
+// refreshStarRail 在后台读取日志与网页缓存并抓取记录，完成后刷新界面。
+func (a *app) refreshStarRail() {
+	if a.starrailFetching {
+		return
+	}
+	a.starrailFetching = true
+	a.starrailStatus = "正在读取游戏日志与缓存…"
+	go func() {
+		res, err := refreshStarRailData(func(msg string) {
+			a.publish(func() { a.starrailStatus = msg })
+		})
+		a.publish(func() {
+			a.starrailFetching = false
+			if err != nil {
+				a.starrailStatus = ""
+				a.starrailToast = "刷新失败：" + err.Error()
+				return
+			}
+			d, loadErr := loadStarRailData()
+			a.starrail, a.starrailErr, a.starrailLoaded = d, loadErr, true
+			if loadErr != nil {
+				a.starrailStatus = ""
+				a.starrailToast = "刷新成功，但读取数据失败：" + loadErr.Error()
+				return
+			}
+			a.starrailStatus = res.Message()
 		})
 	}()
 }
