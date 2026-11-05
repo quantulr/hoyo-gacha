@@ -53,17 +53,23 @@ type gachaView struct {
 
 // app 是窗口展示的状态：当前选中的游戏、窗口本身和已读入的数据。
 type app struct {
-	selected  string
-	win       *mygo.Window
-	zzz       *gachaData
-	zzzErr    error
-	zzzLoaded bool
-	zzzView   gachaView
+	selected string
+	win      *mygo.Window
+
+	genshin       *gachaData
+	genshinErr    error
+	genshinLoaded bool
+	genshinView   gachaView
 
 	starrail       *gachaData
 	starrailErr    error
 	starrailLoaded bool
 	starrailView   gachaView
+
+	zzz       *gachaData
+	zzzErr    error
+	zzzLoaded bool
+	zzzView   gachaView
 
 	zzzFetching bool   // 正在从游戏接口刷新
 	zzzStatus   string // 刷新进度或结果
@@ -202,10 +208,12 @@ func (a *app) content(c *ui.Context, pal *palette, g *game) {
 				a.windowControls(c, pal)
 			})
 			switch g.id {
-			case "zzz":
-				a.zzzBody(c, pal, g)
+			case "genshin":
+				a.genshinBody(c, pal, g)
 			case "starrail":
 				a.starrailBody(c, pal, g)
+			case "zzz":
+				a.zzzBody(c, pal, g)
 			default:
 				a.emptyBody(c, pal, g)
 			}
@@ -228,6 +236,18 @@ func (a *app) emptyBody(c *ui.Context, pal *palette, g *game) {
 // recentSCount 是“最近出金”显示的条数。
 const recentSCount = 12
 
+// gachaTerms 返回游戏对应的“全部抽数”说明和保底标题。
+func gachaTerms(g *game) (all, pity string) {
+	switch g.id {
+	case "genshin":
+		return "全部祈愿", "祈愿保底"
+	case "starrail":
+		return "全部跃迁", "跃迁保底"
+	default:
+		return "全部频段", "频段保底"
+	}
+}
+
 // zzzBody 按数据状态展示绝区零的抽卡概览。
 func (a *app) zzzBody(c *ui.Context, pal *palette, g *game) {
 	if a.zzzStatus != "" {
@@ -235,6 +255,12 @@ func (a *app) zzzBody(c *ui.Context, pal *palette, g *game) {
 	}
 	a.gachaBody(c, pal, g, a.zzz, a.zzzErr, a.zzzLoaded, &a.zzzView,
 		"先在游戏内打开「调频记录」页，再点右上角「刷新」即可读取最新记录。")
+}
+
+// genshinBody 按数据状态展示原神的抽卡概览。
+func (a *app) genshinBody(c *ui.Context, pal *palette, g *game) {
+	a.gachaBody(c, pal, g, a.genshin, a.genshinErr, a.genshinLoaded, &a.genshinView,
+		"把 gacha-list-*.json 放到应用数据目录的 genshin 文件夹后重启即可。")
 }
 
 // starrailBody 按数据状态展示崩坏：星穹铁道的抽卡概览。
@@ -401,11 +427,8 @@ func (a *app) gachaOverview(c *ui.Context, pal *palette, g *game, d *gachaData) 
 			statCards(c, pal, g, d)
 		})
 		ui.Column(c).Gap(8).Children(func() {
-			title := "频段保底"
-			if g.id == "starrail" {
-				title = "跃迁保底"
-			}
-			sectionHeading(c, pal, title, "自上次 S 级起")
+			_, pityTitle := gachaTerms(g)
+			sectionHeading(c, pal, pityTitle, "自上次 S 级起")
 			for _, ch := range d.Channels {
 				channelRow(c, pal, g, ch)
 			}
@@ -568,10 +591,7 @@ func sectionHeading(c *ui.Context, pal *palette, title, note string) {
 }
 
 func statCards(c *ui.Context, pal *palette, g *game, d *gachaData) {
-	all := "全部频段"
-	if g.id == "starrail" {
-		all = "全部跃迁"
-	}
+	all, _ := gachaTerms(g)
 	cards := []struct {
 		label string
 		value string
@@ -666,6 +686,20 @@ func channelColor(typ, game string, pal *palette) ui.Color {
 	if pal.dark {
 		purple = ui.Hex("#a99bf0")
 		teal = ui.Hex("#7fc4b8")
+	}
+	if game == "genshin" {
+		switch typ {
+		case "301": // 角色活动祈愿
+			return pal.attention
+		case "302": // 武器活动祈愿
+			return purple
+		case "500": // 集录祈愿
+			return pal.accent
+		case "100": // 新手祈愿
+			return teal
+		default: // 常驻祈愿
+			return pal.textMuted
+		}
 	}
 	if game == "starrail" {
 		switch typ {
@@ -807,11 +841,13 @@ func main() {
 		win := a.win
 		// 数据文件在后台读取，读完再交给界面线程。
 		go func() {
-			zzz, zzzErr := loadZZZData()
+			gi, giErr := loadGenshinData()
 			sr, srErr := loadStarRailData()
+			zzz, zzzErr := loadZZZData()
 			win.Update(func() {
-				a.zzz, a.zzzErr, a.zzzLoaded = zzz, zzzErr, true
+				a.genshin, a.genshinErr, a.genshinLoaded = gi, giErr, true
 				a.starrail, a.starrailErr, a.starrailLoaded = sr, srErr, true
+				a.zzz, a.zzzErr, a.zzzLoaded = zzz, zzzErr, true
 			})
 		}()
 	})

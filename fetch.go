@@ -77,6 +77,23 @@ type apiGachaRecord struct {
 	gachaRecord
 }
 
+// UnmarshalJSON 分开解析 uid 和记录字段。gachaRecord 自带 UnmarshalJSON，
+// 嵌入后会推广到整个结构体，直接解析会丢掉 uid。
+func (r *apiGachaRecord) UnmarshalJSON(data []byte) error {
+	var meta struct {
+		UID string `json:"uid"`
+	}
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return err
+	}
+	var rec gachaRecord
+	if err := json.Unmarshal(data, &rec); err != nil {
+		return err
+	}
+	r.UID, r.gachaRecord = meta.UID, rec
+	return nil
+}
+
 // zzzLogData 是接口响应里的 data 部分。
 type zzzLogData struct {
 	List   []apiGachaRecord `json:"list"`

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -16,13 +17,54 @@ type gachaRecord struct {
 	ItemID    string `json:"item_id"`
 	ItemType  string `json:"item_type"`
 	Name      string `json:"name"`
-	RankType  string `json:"rank_type"` // 4 = S 级，3 = A 级，2 = B 级
+	RankType  string `json:"rank_type"` // S/A/B 对应的值随游戏而定
 	Time      string `json:"time"`      // 本地时间，YYYY-MM-DD HH:MM:SS
 	GachaType string `json:"gacha_type"`
 	Count     string `json:"count,omitempty"`
 }
 
-// gachaGroup 是 result 里的一组记录：频段类型和它的记录。
+// UnmarshalJSON 同时接受对象记录和原神的紧凑数组记录：
+// [时间, 名称, 类型, 等级] 或 [时间, 名称, 类型, 等级, 卡池类型, id]。
+func (r *gachaRecord) UnmarshalJSON(data []byte) error {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 || trimmed[0] != '[' {
+		type plain gachaRecord
+		return json.Unmarshal(data, (*plain)(r))
+	}
+	var row []json.RawMessage
+	if err := json.Unmarshal(trimmed, &row); err != nil {
+		return err
+	}
+	if len(row) < 4 {
+		return fmt.Errorf("抽卡记录有 %d 个字段，至少需要 4 个", len(row))
+	}
+	r.Time = rawString(row[0])
+	r.Name = rawString(row[1])
+	r.ItemType = rawString(row[2])
+	r.RankType = rawString(row[3])
+	if len(row) > 4 {
+		r.GachaType = rawString(row[4])
+	}
+	if len(row) > 5 {
+		r.ID = rawString(row[5])
+	}
+	return nil
+}
+
+// rawString 把 JSON 字符串或数字转成字符串。
+func rawString(raw json.RawMessage) string {
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	var n json.Number
+	if json.Unmarshal(raw, &n) == nil {
+		return n.String()
+	}
+	return ""
+}
+
+// gachaGroup 是 result 里的一组记录：卡池类型和它的记录。
 type gachaGroup struct {
 	Type    string
 	Records []gachaRecord
@@ -125,6 +167,12 @@ type gachaSpec struct {
 }
 
 var gachaSpecs = map[string]gachaSpec{
+	"genshin": {
+		sRank: "5",
+		aRank: "4",
+		bRank: "3",
+		pity:  map[string]int{"302": 80, "100": 20},
+	},
 	"zzz": {
 		sRank: "4",
 		aRank: "3",
