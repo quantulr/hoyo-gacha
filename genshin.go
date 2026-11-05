@@ -13,6 +13,8 @@ var genshinGame = game{
 	spec:         genshinSpec,
 	body:         (*app).genshinBody,
 	channelColor: genshinChannelColor,
+	refresh:      (*app).refreshGenshin,
+	fetching:     (*app).genshinFetchState,
 	load:         loadGenshinData,
 	apply:        (*app).applyGenshinData,
 }
@@ -36,8 +38,45 @@ func (a *app) applyGenshinData(d *gachaData, err error) {
 
 // genshinBody 按数据状态展示原神的抽卡概览。
 func (a *app) genshinBody(c *ui.Context, pal *palette, g *game) {
+	if a.genshinStatus != "" && !a.genshinFetching {
+		a.statusRow(c, pal, a.genshinStatus)
+	}
 	a.gachaBody(c, pal, g, a.genshin, a.genshinErr, a.genshinLoaded, &a.genshinView,
-		"把 gacha-list-*.json 放到应用数据目录的 genshin 文件夹后重启即可。")
+		"先在游戏内打开「祈愿记录」页，再点右上角「刷新」即可读取最新记录。")
+}
+
+func (a *app) genshinFetchState() (string, bool) {
+	return a.genshinStatus, a.genshinFetching
+}
+
+// refreshGenshin 在后台读取日志与网页缓存并抓取记录，完成后刷新界面。
+func (a *app) refreshGenshin() {
+	if a.genshinFetching {
+		return
+	}
+	a.genshinFetching = true
+	a.genshinStatus = "正在读取游戏日志与缓存…"
+	go func() {
+		res, err := refreshGenshinData(func(msg string) {
+			a.publish(func() { a.genshinStatus = msg })
+		})
+		a.publish(func() {
+			a.genshinFetching = false
+			if err != nil {
+				a.genshinStatus = ""
+				a.genshinToast = "刷新失败：" + err.Error()
+				return
+			}
+			d, loadErr := loadGenshinData()
+			a.applyGenshinData(d, loadErr)
+			if loadErr != nil {
+				a.genshinStatus = ""
+				a.genshinToast = "刷新成功，但读取数据失败：" + loadErr.Error()
+				return
+			}
+			a.genshinStatus = res.Message()
+		})
+	}()
 }
 
 // genshinChannelColor 返回原神各祈愿频段的标识色。

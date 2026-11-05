@@ -31,6 +31,10 @@ type app struct {
 	genshinLoaded bool
 	genshinView   gachaView
 
+	genshinFetching bool   // 正在从游戏接口刷新
+	genshinStatus   string // 刷新进度或结果
+	genshinToast    string // 待显示的请求错误，显示后清空
+
 	starrail       *gachaData
 	starrailErr    error
 	starrailLoaded bool
@@ -68,6 +72,10 @@ func (a *app) current() *game {
 func (a *app) view(c *ui.Context) {
 	pal := paletteFor(c)
 	applyTheme(c, pal)
+	if a.genshinToast != "" {
+		c.Toast(a.genshinToast)
+		a.genshinToast = ""
+	}
 	if a.zzzToast != "" {
 		// 每个请求错误只弹一次，避免每帧重复播报。
 		c.Toast(a.zzzToast)
