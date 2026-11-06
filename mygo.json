@@ -1,6 +1,6 @@
 {
   "name": "hoyo-gacha",
-  "identifier": "com.example.hoyogacha",
+  "identifier": "io.github.quantulr.hoyogacha",
   "version": "0.1.0",
   "out": "build"
 }
