@@ -18,7 +18,7 @@ var ownControls = runtime.GOOS != "darwin"
 type gachaView struct {
 	page     int    // 0 概览，1 记录
 	chanType string // 记录页选中的卡池频道
-	filter   int    // 记录页筛选：0 全部，1 S+A，2 S
+	filter   int    // 记录页筛选：0 仅 S，1 S+A，2 全部
 }
 
 // app 是窗口展示的状态：当前选中的游戏、窗口本身和已读入的数据。
@@ -361,7 +361,7 @@ func viewSwitch(c *ui.Context, pal *palette, sel *int) {
 
 // rankFilter 是记录页的等级筛选。
 func rankFilter(c *ui.Context, pal *palette, sel *int) {
-	segmented(c, pal, sel, "筛选", []string{"全部", "S+A", "仅 S"})
+	segmented(c, pal, sel, "筛选", []string{"仅 S", "S+A", "全部"})
 }
 
 func (a *app) messageBody(c *ui.Context, pal *palette, g *game, title, detail string) {

@@ -110,13 +110,20 @@ func TestZZZView(t *testing.T) {
 		}
 	}
 
-	// 切到记录页，显示每个卡池的完整记录。
+	// 切到记录页，默认只看 S。
 	if err := tt.Click("记录"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("S1") || tt.HasText("A1") || tt.HasText("B2") ||
+		!tt.HasText("共 1 条 · 最新在前") {
+		t.Errorf("记录页默认应只看 S，现有 %q", tt.Texts())
+	}
+	if err := tt.Click("全部"); err != nil {
 		t.Fatal(err)
 	}
 	for _, text := range []string{"卡池记录", "共 4 条 · 最新在前", "B2", "S1", "A1"} {
 		if !tt.HasText(text) {
-			t.Errorf("记录页缺少 %q，现有 %q", text, tt.Texts())
+			t.Errorf("全部筛选缺少 %q，现有 %q", text, tt.Texts())
 		}
 	}
 	if err := tt.Click("常驻频段"); err != nil {
@@ -157,8 +164,9 @@ func TestZZZRankFilter(t *testing.T) {
 	if err := tt.Click("记录"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("B2") || !tt.HasText("A1") || !tt.HasText("S1") {
-		t.Fatalf("默认应显示全部记录，现有 %q", tt.Texts())
+	if !tt.HasText("S1") || tt.HasText("A1") || tt.HasText("B2") ||
+		!tt.HasText("共 1 条 · 最新在前") {
+		t.Fatalf("默认应只看 S，现有 %q", tt.Texts())
 	}
 
 	if err := tt.Click("S+A"); err != nil {
@@ -171,17 +179,17 @@ func TestZZZRankFilter(t *testing.T) {
 		t.Errorf("S+A 筛选结果 %q", tt.Texts())
 	}
 
+	if err := tt.Click("全部"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("B2") || !tt.HasText("共 4 条 · 最新在前") {
+		t.Errorf("全部筛选结果 %q", tt.Texts())
+	}
+
 	if err := tt.Click("仅 S"); err != nil {
 		t.Fatal(err)
 	}
 	if tt.HasText("A1") || !tt.HasText("S1") || !tt.HasText("共 1 条 · 最新在前") {
 		t.Errorf("仅 S 筛选结果 %q", tt.Texts())
-	}
-
-	if err := tt.Click("全部"); err != nil {
-		t.Fatal(err)
-	}
-	if !tt.HasText("B2") || !tt.HasText("共 4 条 · 最新在前") {
-		t.Errorf("恢复全部后 %q", tt.Texts())
 	}
 }

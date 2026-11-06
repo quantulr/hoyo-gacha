@@ -116,9 +116,17 @@ func TestStarRailView(t *testing.T) {
 	if err := tt.Click("记录"); err != nil {
 		t.Fatal(err)
 	}
-	for _, text := range []string{"卡池记录", "共 3 条 · 最新在前", "S1", "A1", "B1"} {
+	if !tt.HasText("S1") || tt.HasText("A1") || tt.HasText("B1") ||
+		!tt.HasText("共 1 条 · 最新在前") {
+		t.Errorf("记录页默认应只看 S，现有 %q", tt.Texts())
+	}
+
+	if err := tt.Click("全部"); err != nil {
+		t.Fatal(err)
+	}
+	for _, text := range []string{"共 3 条 · 最新在前", "S1", "A1", "B1"} {
 		if !tt.HasText(text) {
-			t.Errorf("记录页缺少 %q，现有 %q", text, tt.Texts())
+			t.Errorf("全部筛选缺少 %q，现有 %q", text, tt.Texts())
 		}
 	}
 

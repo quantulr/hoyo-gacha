@@ -113,11 +113,11 @@ type pullRecord struct {
 	Lost bool // S 级不是当期 UP；常驻、邦布或缺少卡池数据时为 false
 }
 
-// 记录页的筛选模式。
+// 记录页的筛选模式。零值默认只看 S。
 const (
-	pullFilterAll = iota // 全部
+	pullFilterS   = iota // 仅 S
 	pullFilterSA         // S + A
-	pullFilterS          // 仅 S
+	pullFilterAll        // 全部
 )
 
 // filterPullRanks 按等级保留记录。
