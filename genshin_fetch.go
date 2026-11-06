@@ -20,27 +20,38 @@ import (
 
 // 原神祈愿记录接口：国服与国际服域名不同。
 const (
-	genshinAPICN        = "https://public-operation-hk4e.mihoyo.com"
-	genshinAPIOS        = "https://public-operation-hk4e-sg.hoyoverse.com"
-	genshinGachaPath    = "/gacha_info/api/getGachaLog"
-	genshinPageSize     = 20
-	genshinProbeSize    = 6
-	genshinFetchTries   = 5
-	genshinRetryWait    = 5 * time.Second
-	genshinPageWait     = 300 * time.Millisecond
-	genshinIntervalWait = time.Second
+	genshinAPICN           = "https://public-operation-hk4e.mihoyo.com"
+	genshinAPIOS           = "https://public-operation-hk4e-sg.hoyoverse.com"
+	genshinGachaPath       = "/gacha_info/api/getGachaLog"
+	genshinBeyondGachaPath = "/gacha_info/api/getBeyondGachaLog"
+	genshinPageSize        = 20
+	genshinBeyondPageSize  = 20
+	genshinProbeSize       = 6
+	genshinFetchTries      = 5
+	genshinRetryWait       = 5 * time.Second
+	genshinPageWait        = 300 * time.Millisecond
+	genshinIntervalWait    = time.Second
 )
 
 // genshinChannelOrder 是抓取和展示祈愿频段的固定顺序。
-var genshinChannelOrder = []string{"301", "302", "500", "200", "100"}
+var genshinChannelOrder = []string{"301", "302", "500", "200", "100", "2000", "1000"}
+
+// genshinNormalChannelOrder 是普通祈愿接口的频段。
+var genshinNormalChannelOrder = []string{"301", "302", "500", "200", "100"}
+
+// genshinBeyondChannelOrder 是千星奇域颂愿接口的频段。活动颂愿接口返回
+// 20011/20012/20021/20022 等子池记录，统一归入 2000。
+var genshinBeyondChannelOrder = []string{"2000", "1000"}
 
 // genshinChannelNames 是各祈愿频段在简体中文下的名称。
 var genshinChannelNames = map[string]string{
-	"301": "角色活动祈愿",
-	"302": "武器活动祈愿",
-	"500": "集录祈愿",
-	"200": "常驻祈愿",
-	"100": "新手祈愿",
+	"301":  "角色活动祈愿",
+	"302":  "武器活动祈愿",
+	"500":  "集录祈愿",
+	"200":  "常驻祈愿",
+	"100":  "新手祈愿",
+	"2000": "千星奇域·活动颂愿",
+	"1000": "千星奇域·常驻颂愿",
 }
 
 // 测试里替换掉真实的网络和等待。
@@ -50,7 +61,7 @@ var (
 )
 
 var (
-	errGenshinAuthkey = errors.New("authkey 已失效，请先在游戏内打开「祈愿记录」页，再点刷新")
+	errGenshinAuthkey = errors.New("authkey 已失效，请先在游戏内打开「祈愿记录」或「颂愿」页，再点刷新")
 	// 日志里的游戏安装路径，例如 C:/Program Files/Genshin Impact/GenshinImpact_Data。
 	genshinGamePathRE = regexp.MustCompile(`(?i)[a-z]:[/\\].+?(GenshinImpact_Data|YuanShen_Data)`)
 	// 网页缓存里的完整链接；查询参数里可能有 % 编码的逗号等字符。
@@ -132,7 +143,7 @@ func findGenshinLogURL(files []genshinLogFile) (string, error) {
 			return raw, nil
 		}
 	}
-	return "", errors.New("没有在游戏日志或缓存里找到祈愿记录链接，请先在游戏内打开「祈愿记录」页再刷新")
+	return "", errors.New("没有在游戏日志或缓存里找到祈愿/颂愿记录链接，请先在游戏内打开「祈愿记录」或「颂愿」页再刷新")
 }
 
 // findGenshinCacheURL 按修改时间从新到旧读取 data_2 缓存文件，找不到时继续
@@ -167,7 +178,7 @@ func findGenshinCacheURL(gamePath string) (string, error) {
 			return raw, nil
 		}
 	}
-	return "", errors.New("没有在游戏缓存里找到祈愿记录链接")
+	return "", errors.New("没有在游戏缓存里找到祈愿/颂愿记录链接")
 }
 
 // genshinCacheURL 返回缓存文本里最后一条祈愿记录页链接。
@@ -233,11 +244,12 @@ func (api *genshinAPIURL) setLang(lang string) {
 	api.query = q.Encode()
 }
 
-// genshinFetchUID 先抽一页，确定账号 UID 与服务器时区。
+// genshinFetchUID 先抽一页，确定账号 UID 与服务器时区。只玩颂愿的账号
+// 普通祈愿全为空，因此再探测颂愿频段。
 func genshinFetchUID(api *genshinAPIURL) (string, string, int, error) {
 	var region string
 	var zone int
-	for _, typ := range genshinChannelOrder {
+	for _, typ := range genshinNormalChannelOrder {
 		data, err := genshinRequestRetry(api, typ, 1, "0", genshinProbeSize)
 		if err != nil {
 			return "", region, zone, err
@@ -252,7 +264,33 @@ func genshinFetchUID(api *genshinAPIURL) (string, string, int, error) {
 			return data.List[0].UID, data.Region, zone, nil
 		}
 	}
+	beyond := genshinBeyondAPI(api)
+	for _, typ := range genshinBeyondChannelOrder {
+		data, err := genshinBeyondRequestRetry(&beyond, typ, 1, "0", genshinProbeSize)
+		if err != nil {
+			return "", region, zone, err
+		}
+		if region == "" {
+			region = data.Region
+		}
+		if zone == 0 {
+			zone = data.RegionTimeZone
+		}
+		if len(data.List) > 0 && data.List[0].UID != "" {
+			return data.List[0].UID, region, zone, nil
+		}
+	}
 	return "", region, zone, nil
+}
+
+// genshinBeyondAPI 返回颂愿接口的请求信息。英文接口要求 en-us，
+// 而普通祈愿使用 en。
+func genshinBeyondAPI(api *genshinAPIURL) genshinAPIURL {
+	out := *api
+	if out.lang == "en" {
+		out.setLang("en-us")
+	}
+	return out
 }
 
 // genshinRegionZone 按 UID 前缀返回服务器时区：6 为美服（UTC-5），
@@ -279,7 +317,7 @@ func fetchGenshinAll(dir string, api *genshinAPIURL, progress func(string)) (*ga
 		return nil, err
 	}
 	if uid == "" {
-		return nil, errors.New("没有获取到祈愿记录，请先在游戏内打开「祈愿记录」页再刷新")
+		return nil, errors.New("没有获取到祈愿或颂愿记录，请先在游戏内打开「祈愿记录」或「颂愿」页再刷新")
 	}
 	// 原神接口不返回 region_time_zone，按 UID 前缀判断服务器时区。
 	serverZone := apiZone
@@ -300,9 +338,24 @@ func fetchGenshinAll(dir string, api *genshinAPIURL, progress func(string)) (*ga
 	latest := gachaLatestIDs(local)
 
 	fetched := &gachaExport{UID: uid, Lang: api.lang, RegionTimeZone: targetZone}
-	for _, typ := range genshinChannelOrder {
+	for _, typ := range genshinNormalChannelOrder {
 		name := genshinChannelNames[typ]
 		recs, err := genshinFetchChannel(api, typ, name, latest[typ], progress)
+		if err != nil {
+			return nil, err
+		}
+		for i := range recs {
+			recs[i].Time = convertGachaTime(recs[i].Time, serverZone, targetZone)
+		}
+		fetched.Result = append(fetched.Result, gachaGroup{Type: typ, Records: recs})
+		fetched.TypeMap = append(fetched.TypeMap, [2]string{typ, name})
+	}
+
+	// 千星奇域颂愿使用独立接口。
+	beyondAPI := genshinBeyondAPI(api)
+	for _, typ := range genshinBeyondChannelOrder {
+		name := genshinChannelNames[typ]
+		recs, err := genshinFetchBeyondChannel(&beyondAPI, typ, name, latest[typ], progress)
 		if err != nil {
 			return nil, err
 		}
@@ -369,6 +422,84 @@ func genshinFetchChannel(api *genshinAPIURL, typ, name string, latest *big.Int,
 	return records, nil
 }
 
+// beyondGachaRecord 是 getBeyondGachaLog 返回的一条颂愿记录。
+type beyondGachaRecord struct {
+	UID         string `json:"uid"`
+	ID          string `json:"id"`
+	ItemType    string `json:"item_type"`
+	ItemID      string `json:"item_id"`
+	ItemName    string `json:"item_name"`
+	RankType    string `json:"rank_type"`
+	Time        string `json:"time"`
+	OpGachaType string `json:"op_gacha_type"`
+}
+
+// beyondGachaLogData 是颂愿接口响应里的 data 部分。
+type beyondGachaLogData struct {
+	List           []beyondGachaRecord `json:"list"`
+	Region         string              `json:"region"`
+	RegionTimeZone int                 `json:"region_time_zone"`
+}
+
+// toGachaRecord 把颂愿记录转成导出文件里的通用记录。gacha_type 保留
+// 接口返回的 op_gacha_type，便于区分活动颂愿的实际子池。
+func (r beyondGachaRecord) toGachaRecord(typ string) gachaRecord {
+	gachaType := r.OpGachaType
+	if gachaType == "" {
+		gachaType = typ
+	}
+	return gachaRecord{
+		ID:        r.ID,
+		ItemID:    r.ItemID,
+		ItemType:  r.ItemType,
+		Name:      r.ItemName,
+		RankType:  r.RankType,
+		Time:      r.Time,
+		GachaType: gachaType,
+		Count:     "1",
+	}
+}
+
+// genshinFetchBeyondChannel 按 end_id 翻页抓取一个颂愿频段。
+func genshinFetchBeyondChannel(api *genshinAPIURL, typ, name string, latest *big.Int,
+	progress func(string)) ([]gachaRecord, error) {
+	var records []gachaRecord
+	page := 1
+	endID := "0"
+	for {
+		progress(fmt.Sprintf("正在读取 %s（第 %d 页）…", name, page))
+		data, err := genshinBeyondRequestRetry(api, typ, page, endID, genshinBeyondPageSize)
+		if err != nil {
+			return nil, err
+		}
+		if len(data.List) == 0 {
+			break
+		}
+		hitLatest := false
+		for _, item := range data.List {
+			rec := item.toGachaRecord(typ)
+			records = append(records, rec)
+			if latest != nil && gachaIDEquals(rec.ID, latest) {
+				hitLatest = true
+			}
+		}
+		if hitLatest {
+			break
+		}
+		endID = data.List[len(data.List)-1].ID
+		if endID == "" || endID == "0" {
+			break
+		}
+		page++
+		genshinSleep(genshinPageWait)
+		if page%10 == 0 {
+			// 每 10 页多歇一会，避免请求过快。
+			genshinSleep(genshinIntervalWait)
+		}
+	}
+	return records, nil
+}
+
 // genshinRequestRetry 请求一页记录，网络或接口错误时重试；authkey 失效直接返回。
 func genshinRequestRetry(api *genshinAPIURL, typ string, page int, endID string,
 	size int) (*gachaLogData, error) {
@@ -387,6 +518,69 @@ func genshinRequestRetry(api *genshinAPIURL, typ string, page int, endID string,
 		lastErr = err
 	}
 	return nil, lastErr
+}
+
+// genshinBeyondRequestRetry 请求一页颂愿记录，网络或接口错误时重试。
+func genshinBeyondRequestRetry(api *genshinAPIURL, typ string, page int, endID string,
+	size int) (*beyondGachaLogData, error) {
+	var lastErr error
+	for attempt := 0; attempt < genshinFetchTries; attempt++ {
+		if attempt > 0 {
+			genshinSleep(genshinRetryWait)
+		}
+		data, err := genshinBeyondRequest(api, typ, page, endID, size)
+		if err == nil {
+			return data, nil
+		}
+		if errors.Is(err, errGenshinAuthkey) {
+			return nil, err
+		}
+		lastErr = err
+	}
+	return nil, lastErr
+}
+
+func genshinBeyondRequest(api *genshinAPIURL, typ string, page int, endID string, size int) (*beyondGachaLogData, error) {
+	endpoint := fmt.Sprintf("%s%s?%s&gacha_type=%s&page=%d&size=%d&end_id=%s",
+		api.domain, genshinBeyondGachaPath, api.query, url.QueryEscape(typ), page, size, url.QueryEscape(endID))
+	resp, err := genshinHTTPClient.Get(endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("请求颂愿记录失败：%w", sanitizeURLError(err))
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))
+		return nil, fmt.Errorf("接口返回 HTTP %d", resp.StatusCode)
+	}
+	var payload struct {
+		Retcode int                `json:"retcode"`
+		Message string             `json:"message"`
+		Data    beyondGachaLogData `json:"data"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&payload); err != nil {
+		return nil, fmt.Errorf("无法解析接口响应：%w", err)
+	}
+	if err := genshinAPIError(payload.Retcode, payload.Message); err != nil {
+		return nil, err
+	}
+	return &payload.Data, nil
+}
+
+// genshinAPIError 把接口错误转成统一的错误；authkey 相关错误单独返回。
+func genshinAPIError(retcode int, message string) error {
+	if retcode == 0 {
+		return nil
+	}
+	lower := strings.ToLower(message)
+	if retcode == -100 || retcode == -101 ||
+		strings.Contains(lower, "authkey") || strings.Contains(lower, "登录") ||
+		strings.Contains(lower, "过期") {
+		return errGenshinAuthkey
+	}
+	if message == "" {
+		message = "接口请求失败"
+	}
+	return fmt.Errorf("%s（retcode %d）", message, retcode)
 }
 
 func genshinRequest(api *genshinAPIURL, typ string, page int, endID string, size int) (*gachaLogData, error) {
@@ -409,17 +603,8 @@ func genshinRequest(api *genshinAPIURL, typ string, page int, endID string, size
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&payload); err != nil {
 		return nil, fmt.Errorf("无法解析接口响应：%w", err)
 	}
-	if payload.Retcode != 0 {
-		lower := strings.ToLower(payload.Message)
-		if payload.Retcode == -100 || payload.Retcode == -101 ||
-			strings.Contains(lower, "authkey") || strings.Contains(lower, "登录") ||
-			strings.Contains(lower, "过期") {
-			return nil, errGenshinAuthkey
-		}
-		if payload.Message == "" {
-			payload.Message = "接口请求失败"
-		}
-		return nil, fmt.Errorf("%s（retcode %d）", payload.Message, payload.Retcode)
+	if err := genshinAPIError(payload.Retcode, payload.Message); err != nil {
+		return nil, err
 	}
 	return &payload.Data, nil
 }

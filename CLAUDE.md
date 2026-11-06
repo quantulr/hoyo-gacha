@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概览
 
-hoyo-gacha 是一个用 Go + MyGo（`github.com/egoist/mygo`）构建的原生桌面抽卡记录管理器，支持原神、崩坏：星穹铁道、绝区零。界面全部由 Go 的 `mygo/ui` 描述，没有前端构建步骤。
+hoyo-gacha 是一个用 Go + MyGo（`github.com/egoist/mygo`）构建的原生桌面抽卡记录管理器，支持原神（含千星奇域颂愿）、崩坏：星穹铁道、绝区零。界面全部由 Go 的 `mygo/ui` 描述，没有前端构建步骤。
 
 抽卡记录有两种来源：导入 `gacha-list-<uid>.json`，或从本机游戏日志/网页缓存中提取临时 authkey 链接后请求官方接口。应用数据位于 `mygo.App.Path(mygo.PathUserData)/data/<game>/`；Windows 生产版在 `%APPDATA%\hoyo-gacha`，开发版在 `%APPDATA%\hoyo-gacha Dev`。
 
@@ -25,9 +25,9 @@ go build -o /tmp/hoyo-gacha-check .  # 仅编译检查；用 -o 指到临时目�
 
 - `main.go`：`app` 状态、窗口与所有共享 UI。启动时遍历 `games`，在后台调用各游戏的 `load`，再回到主线程 `apply`。`content` 按 `g.body` 分发页面；顶栏刷新按钮和全窗进度弹框由 `game.refresh` / `game.fetching` 驱动。
 - `games.go`：`game` 描述结构与注册表。每个游戏文件提供元数据、`gachaSpec`、`load`/`apply`、页面 `body`、频道颜色，可选 `refresh`/`fetching`/`annotate`。`games` 在 `init()` 中赋值，避免“游戏变量 → load → gameByID → games”的初始化循环。
-- `gacha.go`：共享数据模型与统计。`gachaRecord` 同时解析对象记录和原神紧凑数组；`gachaExport` 对应 `gacha-list-<uid>.json`；`newGachaData` 计算保底、等级和出金历史，并把记录翻成最新在前。`gachaSpecFor` 从游戏注册表取等级与保底规则。
+- `gacha.go`：共享数据模型与统计。`gachaRecord` 同时解析对象记录和原神紧凑数组；`gachaExport` 对应 `gacha-list-<uid>.json`；`newGachaData` 计算保底、等级和出金历史，并把记录翻成最新在前。`gachaSpecFor` 从游戏注册表取等级与保底规则；`gachaSpec.ranks` 按频道覆盖等级映射。
 - `fetch.go`：共享抓取基础设施。API 响应结构、`gachaLatestIDs`/`gachaIDEquals`、时区换算、`loadGachaLocal`、`mergeGachaExport`（按 id 严格并集）、原子写 `saveGachaExport`、`sanitizeURLError`。
-- 每个游戏两份文件：`<game>.go`（描述符与 UI）和 `<game>_fetch.go`（日志/缓存定位、链接解析、分页抓取）。ZZZ、星穹铁道和原神的卡池歪标记分别在 `zzz_banners.go`、`starrail_banners.go`、`genshin_banners.go`，对应的 `assets/*-banners.json` 通过 `go:embed` 内嵌；卡池时间按 UTC+8。原神卡池只覆盖角色/武器活动祈愿，集录祈愿暂不判定。
+- 每个游戏两份文件：`<game>.go`（描述符与 UI）和 `<game>_fetch.go`（日志/缓存定位、链接解析、分页抓取）。ZZZ、星穹铁道和原神的卡池歪标记分别在 `zzz_banners.go`、`starrail_banners.go`、`genshin_banners.go`，对应的 `assets/*-banners.json` 通过 `go:embed` 内嵌；卡池时间按 UTC+8。原神卡池只覆盖角色/武器活动祈愿，集录祈愿和千星奇域颂愿暂不判定。
 - UI 测试用 `ui.NewTester(a.view, 960, 680)` 配合 `HasText`/`Click`，不需要真实窗口。
 
 ## 抓取流程
@@ -36,11 +36,11 @@ go build -o /tmp/hoyo-gacha-check .  # 仅编译检查；用 -o 指到临时目�
 
 1. `find<Game>LogURL` 在游戏日志/网页缓存中找最后一条含 authkey 的链接；
 2. `parse<Game>LogURL` 删除分页参数、保留 authkey 等公共参数，并按 host 选择国服/国际服域名；
-3. `<game>FetchUID` 用第一页确认 UID 和服务器时区；
+3. `<game>FetchUID` 用第一页确认 UID 和服务器时区；原神普通祈愿全空时继续探测颂愿接口；
 4. `fetch<Game>All` 读取本地文件，按频道翻页；命中 `gachaLatestIDs` 返回的本地最新 id 时提前停止；
 5. `mergeGachaExport` 按 id 合并（不会丢弃本地独有的频道），`saveGachaExport` 原子写回并更新 `config.json` 的 `current`。
 
-分页约定：每页 20 条、`end_id` 游标、网络错误重试 5 次（间隔 5s）、每页 300ms、每 10 页额外 1s。进度通过 `progress` 回调更新；UI 线程更新一律走 `a.publish`。
+分页约定：每页 20 条、`end_id` 游标、网络错误重试 5 次（间隔 5s）、每页 300ms、每 10 页额外 1s。进度通过 `progress` 回调更新；UI 线程更新一律走 `a.publish`。原神千星奇域颂愿走独立的 `/gacha_info/api/getBeyondGachaLog`，活动颂愿统一用 `gacha_type=2000` 查询，响应里的 `op_gacha_type` 保留到记录中；英文接口的语言参数需要从 `en` 改成 `en-us`。
 
 原神接口不返回 `region_time_zone`，`genshinRegionZone` 按 UID 前缀补：`6` = UTC-5，`7` = UTC+1，其余 = UTC+8。HSR 使用接口返回的时区，ZZZ 按 `region` 查 `zzzServerZones`。
 
@@ -48,11 +48,11 @@ go build -o /tmp/hoyo-gacha-check .  # 仅编译检查；用 -o 指到临时目�
 
 | 游戏 | 频道 | 等级 | 保底 |
 |---|---|---|---|
-| 原神 | 301 角色 / 302 武器 / 500 集录 / 200 常驻 / 100 新手 | 5/4/3 | 302=80，100=20，其余 90 |
+| 原神 | 301 角色 / 302 武器 / 500 集录 / 200 常驻 / 100 新手 / 2000 活动颂愿 / 1000 常驻颂愿 | 5/4/3；1000 为 4/3/2 | 302=80，100=20，2000/1000=70，其余 90 |
 | 星穹铁道 | 11/12/1/2/21/22 | 5/4/3 | 12/22=80，2=50，其余 90 |
 | 绝区零 | 2/102 角色 / 3/103 音擎 / 1 常驻 / 5 邦布 | 4/3/2 | 3/103/5=80，其余 90 |
 
-等级在 `pullRecord.Tier` 中统一成 0=S、1=A、2=B；规则集中在各游戏的 `gachaSpec`，`hardPity` 缺省 90。
+等级在 `pullRecord.Tier` 中统一成 0=S、1=A、2=B；规则集中在各游戏的 `gachaSpec`，`hardPity` 缺省 90。千星奇域常驻颂愿没有 5 星，4 星作为最高的 S 级参与保底与出金统计。
 
 ### 新接入一款游戏
 

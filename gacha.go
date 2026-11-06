@@ -158,12 +158,28 @@ type sPull struct {
 	Pity     int
 }
 
+// gachaRankSpec 是一个频段的等级映射。
+type gachaRankSpec struct {
+	s string
+	a string
+	b string
+}
+
 // gachaSpec 是一款游戏的导出等级与保底规则。
 type gachaSpec struct {
 	sRank string
 	aRank string
 	bRank string
-	pity  map[string]int // 各频段的 S 级保底抽数，缺省 90
+	ranks map[string]gachaRankSpec // 按频段覆盖等级映射
+	pity  map[string]int           // 各频段的 S 级保底抽数，缺省 90
+}
+
+// rankFor 返回频段使用的等级映射，未单独配置时用游戏默认值。
+func (s gachaSpec) rankFor(typ string) gachaRankSpec {
+	if r, ok := s.ranks[typ]; ok {
+		return r
+	}
+	return gachaRankSpec{s: s.sRank, a: s.aRank, b: s.bRank}
 }
 
 // gachaSpecFor 返回游戏的等级与保底规则。
@@ -307,6 +323,7 @@ func newGachaData(exp *gachaExport, game string) *gachaData {
 			continue
 		}
 		ch := channelStats{Type: typ, Name: names[typ], HardPity: hardPity(game, typ)}
+		rank := spec.rankFor(typ)
 		// 导出文件通常已按时间升序；排序保证保底计算正确。
 		sort.SliceStable(recs, func(i, j int) bool {
 			if recs[i].Time != recs[j].Time {
@@ -320,11 +337,11 @@ func newGachaData(exp *gachaExport, game string) *gachaData {
 			ch.Pulls++
 			tier := 2
 			switch r.RankType {
-			case spec.sRank:
+			case rank.s:
 				tier = 0
-			case spec.aRank:
+			case rank.a:
 				tier = 1
-			case spec.bRank:
+			case rank.b:
 				tier = 2
 			}
 			ch.Records = append(ch.Records, pullRecord{gachaRecord: r, Pity: pity, Tier: tier})

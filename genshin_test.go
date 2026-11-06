@@ -140,3 +140,111 @@ func TestGenshinView(t *testing.T) {
 		t.Errorf("S+A 筛选结果 %q", tt.Texts())
 	}
 }
+
+// 千星奇域颂愿的等级刻度与普通祈愿不同：活动颂愿是 5/4/3，
+// 常驻颂愿没有 5 星，最高 4 星。
+const genshinUGCFixture = `{
+  "uid": "202",
+  "lang": "zh-cn",
+  "typeMap": [["2000", "千星奇域·活动颂愿"], ["1000", "千星奇域·常驻颂愿"]],
+  "result": [
+    ["2000", [
+      {"id":"11","item_id":"11","item_type":"装扮","name":"活动B","rank_type":"3","time":"2024-01-01 10:00:00","gacha_type":"20011"},
+      {"id":"12","item_id":"12","item_type":"装扮","name":"活动A","rank_type":"4","time":"2024-01-02 10:00:00","gacha_type":"20021"},
+      {"id":"13","item_id":"13","item_type":"装扮","name":"活动S","rank_type":"5","time":"2024-01-03 10:00:00","gacha_type":"20021"}
+    ]],
+    ["1000", [
+      {"id":"21","item_id":"21","item_type":"装扮","name":"常驻B","rank_type":"2","time":"2024-01-04 10:00:00","gacha_type":"1000"},
+      {"id":"22","item_id":"22","item_type":"装扮","name":"常驻A","rank_type":"3","time":"2024-01-05 10:00:00","gacha_type":"1000"},
+      {"id":"23","item_id":"23","item_type":"装扮","name":"常驻S","rank_type":"4","time":"2024-01-06 10:00:00","gacha_type":"1000"}
+    ]]
+  ]
+}`
+
+func testGenshinUGCData(t *testing.T) *gachaData {
+	t.Helper()
+	d, err := parseGacha([]byte(genshinUGCFixture), "genshin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+func TestGenshinUGCStats(t *testing.T) {
+	d := testGenshinUGCData(t)
+	if d.UID != "202" || d.TotalPulls != 6 || d.TotalS != 2 || d.TotalA != 2 {
+		t.Fatalf("汇总 %+v", d)
+	}
+	if len(d.Channels) != 2 {
+		t.Fatalf("颂愿 %+v", d.Channels)
+	}
+	want := []struct {
+		typ, name string
+		s, a, b   int
+		hard      int
+	}{
+		{"2000", "千星奇域·活动颂愿", 1, 1, 1, 70},
+		{"1000", "千星奇域·常驻颂愿", 1, 1, 1, 70},
+	}
+	for i, w := range want {
+		ch := d.Channels[i]
+		if ch.Type != w.typ || ch.Name != w.name || ch.S != w.s || ch.A != w.a ||
+			ch.B != w.b || ch.HardPity != w.hard || ch.Pity != 0 || ch.Average != 3 {
+			t.Errorf("第 %d 个颂愿 %+v，期望 %+v", i+1, ch, w)
+		}
+	}
+	// 常驻颂愿的 4/3/2 星分别映射为 S/A/B；按通用 5/4/3 规则会算错。
+	recs := d.Channels[1].Records
+	if len(recs) != 3 || recs[0].Name != "常驻S" || recs[0].Tier != 0 ||
+		recs[1].Name != "常驻A" || recs[1].Tier != 1 ||
+		recs[2].Name != "常驻B" || recs[2].Tier != 2 {
+		t.Errorf("常驻颂愿记录 %+v", recs)
+	}
+	if len(d.SRecords) != 2 || d.SRecords[0].Name != "常驻S" || d.SRecords[1].Name != "活动S" {
+		t.Errorf("颂愿出金 %+v", d.SRecords)
+	}
+}
+
+func TestGenshinUGCView(t *testing.T) {
+	a := newApp()
+	a.selected = "genshin"
+	a.genshin = testGenshinUGCData(t)
+	a.genshinLoaded = true
+	tt := ui.NewTester(a.view, 960, 680)
+	for _, text := range []string{
+		"千星奇域·活动颂愿", "千星奇域·常驻颂愿", "保底 0 / 70", "活动S", "常驻S",
+	} {
+		if !tt.HasText(text) {
+			t.Errorf("缺少文本 %q，现有 %q", text, tt.Texts())
+		}
+	}
+
+	if err := tt.Click("记录"); err != nil {
+		t.Fatal(err)
+	}
+	// 记录页按频段分开显示，默认只列当前频段的 S 级。
+	if !tt.HasText("活动S") || tt.HasText("活动A") || tt.HasText("常驻S") ||
+		!tt.HasText("共 1 条 · 最新在前") {
+		t.Errorf("记录页默认应只看 S，现有 %q", tt.Texts())
+	}
+	if err := tt.Click("全部"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("活动A") || !tt.HasText("活动B") || !tt.HasText("共 3 条 · 最新在前") {
+		t.Errorf("全部筛选结果 %q", tt.Texts())
+	}
+	if err := tt.Click("千星奇域·常驻颂愿"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("常驻S") || !tt.HasText("常驻A") || !tt.HasText("常驻B") ||
+		!tt.HasText("共 3 条 · 最新在前") {
+		t.Errorf("常驻颂愿记录 %q", tt.Texts())
+	}
+	if err := tt.Click("仅 S"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("常驻S") || tt.HasText("常驻A") || tt.HasText("常驻B") ||
+		!tt.HasText("共 1 条 · 最新在前") {
+		t.Errorf("常驻颂愿仅 S 筛选结果 %q", tt.Texts())
+	}
+}

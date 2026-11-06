@@ -20,12 +20,17 @@ var genshinGame = game{
 	annotate:     annotateGenshinLoaded,
 }
 
-// genshinSpec 是原神的等级与保底规则。
+// genshinSpec 是原神的等级与保底规则。千星奇域常驻颂愿没有 5 星，
+// 以 4 星为最高等级；活动颂愿仍按 5/4/3 星计算。
 var genshinSpec = gachaSpec{
 	sRank: "5",
 	aRank: "4",
 	bRank: "3",
-	pity:  map[string]int{"302": 80, "100": 20},
+	ranks: map[string]gachaRankSpec{
+		"1000": {s: "4", a: "3", b: "2"},
+		"2000": {s: "5", a: "4", b: "3"},
+	},
+	pity: map[string]int{"302": 80, "100": 20, "1000": 70, "2000": 70},
 }
 
 // loadGenshinData 从应用数据目录读取原神的抽卡数据。
@@ -43,7 +48,7 @@ func (a *app) genshinBody(c *ui.Context, pal *palette, g *game) {
 		a.statusRow(c, pal, a.genshinStatus)
 	}
 	a.gachaBody(c, pal, g, a.genshin, a.genshinErr, a.genshinLoaded, &a.genshinView,
-		"先在游戏内打开「祈愿记录」页，再点右上角「刷新」即可读取最新记录。")
+		"先在游戏内打开「祈愿记录」或「颂愿」页，再点右上角「刷新」即可读取最新记录。")
 }
 
 func (a *app) genshinFetchState() (string, bool) {
@@ -88,6 +93,10 @@ func genshinChannelColor(typ string, pal *palette) ui.Color {
 		return pal.attention
 	case "302": // 武器活动祈愿
 		return purple
+	case "2000": // 千星奇域·活动颂愿
+		return purple
+	case "1000": // 千星奇域·常驻颂愿
+		return teal
 	case "500": // 集录祈愿
 		return pal.accent
 	case "100": // 新手祈愿
