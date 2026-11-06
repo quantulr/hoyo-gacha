@@ -27,6 +27,9 @@ type app struct {
 	selected string
 	win      *mygo.Window
 
+	settingsWin  *mygo.Window
+	settingsPage string // 设置窗口当前页：general 或 about
+
 	genshin       *gachaData
 	genshinErr    error
 	genshinLoaded bool
@@ -107,6 +110,9 @@ func (a *app) shortcuts(c *ui.Context) {
 			a.selected = games[i].id
 		}
 	}
+	if c.Shortcut(ui.Cmd, ui.KeyComma) {
+		a.openSettings()
+	}
 }
 
 // sidebar 是透明的侧边栏：顶部品牌、游戏列表，底色由全窗渐变透出。
@@ -137,6 +143,11 @@ func (a *app) sidebar(c *ui.Context, pal *palette) {
 			}
 		})
 		ui.Spacer(c)
+		// 侧边栏底部与 Kero 一样，放一个安静的工具按钮。
+		ui.Row(c).Height(36).Shrink(0).Padding(0, 12, 4, 12).Gap(2).
+			AlignItems(ui.Center).DragWindow().Children(func() {
+			iconButton(c, "settings", settingsIcon, "设置", pal, a.openSettings)
+		})
 	})
 }
 
@@ -676,14 +687,35 @@ func formatInt(n int) string {
 	return b.String()
 }
 
-// windowControls 画出最小化、最大化/还原和关闭按钮。
+// iconButton 是工具栏里的安静方形图标按钮。
+func iconButton(c *ui.Context, key string, svg *ui.SVG, label string, pal *palette, fn func()) {
+	b := ui.ButtonBase(c.Key(key)).Size(28, 26).Radius(6).Center().
+		TextColor(pal.textMuted).Label(label).Tooltip(label)
+	if b.Pressed() {
+		b.Background(pal.rowHover.Alpha(0.12))
+	} else if b.Hovered() {
+		b.Background(pal.rowHover)
+		b.TextColor(pal.text)
+	}
+	b.Children(func() { ui.Icon(c, svg).Size(16, 16) })
+	if b.Clicked() {
+		fn()
+	}
+}
+
+// windowControls 画出主窗口的最小化、最大化/还原和关闭按钮。
 func (a *app) windowControls(c *ui.Context, pal *palette) {
-	if !ownControls || a.win == nil {
+	a.windowControlsFor(c, pal, a.win)
+}
+
+// windowControlsFor 画出指定窗口的按钮，供主窗口和设置窗口共用。
+func (a *app) windowControlsFor(c *ui.Context, pal *palette, win *mygo.Window) {
+	if !ownControls || win == nil {
 		return
 	}
 	ui.Row(c).Gap(2).AlignItems(ui.Center).Shrink(0).Children(func() {
-		a.controlButton(c, pal, "minimize", "最小化", minimizeIcon, false, a.win.Minimize)
-		maximized := a.win.IsMaximized()
+		a.controlButton(c, pal, "minimize", "最小化", minimizeIcon, false, win.Minimize)
+		maximized := win.IsMaximized()
 		svg, label := maximizeIcon, "最大化"
 		if maximized {
 			svg, label = restoreIcon, "还原"
@@ -694,12 +726,12 @@ func (a *app) windowControls(c *ui.Context, pal *palette) {
 		b.Children(func() { ui.Icon(c, svg).Size(16, 16) })
 		if b.Clicked() {
 			if maximized {
-				a.win.Unmaximize()
+				win.Unmaximize()
 			} else {
-				a.win.Maximize()
+				win.Maximize()
 			}
 		}
-		a.controlButton(c, pal, "close-window", "关闭", closeIcon, true, a.win.Close)
+		a.controlButton(c, pal, "close-window", "关闭", closeIcon, true, win.Close)
 	})
 }
 
@@ -724,12 +756,27 @@ func styleControl(b ui.Element, pal *palette, danger bool) {
 	}
 }
 
+// appWindowOptions 统一主窗口和设置窗口的标题栏风格。
+func appWindowOptions(opts mygo.WindowOptions) mygo.WindowOptions {
+	if ownControls {
+		// 隐藏系统标题栏和按钮，由界面自己绘制，保留阴影、圆角和缩放边。
+		opts.TitleBarStyle = mygo.TitleBarHidden
+		opts.HideWindowButtons = true
+		opts.AutoHideMenuBar = true
+	} else {
+		// macOS 保留交通灯，把它嵌进界面。
+		opts.TitleBarStyle = mygo.TitleBarHiddenInset
+		opts.TitleBarHeight = 60
+	}
+	return opts
+}
+
 func main() {
 	// 原生更新窗口，避免为更新功能额外依赖 WebView。
 	mygo.Use(native.Plugin)
 	a := newApp()
 	mygo.App.WhenReady(func() {
-		opts := mygo.WindowOptions{
+		opts := appWindowOptions(mygo.WindowOptions{
 			Title:     "hoyo-gacha",
 			Width:     960,
 			Height:    680,
@@ -738,17 +785,7 @@ func main() {
 			// 记住上次关闭时的窗口位置。
 			StateKey: "main",
 			Content:  ui.View(a.view),
-		}
-		if ownControls {
-			// 隐藏系统标题栏和按钮，由界面自己绘制，保留阴影、圆角和缩放边。
-			opts.TitleBarStyle = mygo.TitleBarHidden
-			opts.HideWindowButtons = true
-			opts.AutoHideMenuBar = true
-		} else {
-			// macOS 保留交通灯，把它嵌进界面。
-			opts.TitleBarStyle = mygo.TitleBarHiddenInset
-			opts.TitleBarHeight = 60
-		}
+		})
 		a.win = mygo.NewWindow(opts)
 		win := a.win
 		// 数据文件在后台读取，读完再交给界面线程。

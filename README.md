@@ -18,6 +18,7 @@ hoyo-gacha 是一款用 Go 和 [MyGo](https://github.com/egoist/mygo) 编写的�
 - **自动刷新**：从本机日志/缓存中提取临时 authkey，分页请求官方接口，并按记录 id 与本地数据合并。
 - **歪卡标记**：内置历史卡池数据；限定卡池的 S 级如果不是当期 UP，会在记录里显示“歪”。
 - **自动更新**：启动后检查 GitHub Release 上的签名更新，下载后下次启动生效；发布与签名校验由 GitHub Actions 完成。
+- **设置窗口**：侧边栏底部打开独立的设置窗口，可手动检查更新、打开数据目录，并在「关于」中查看开源项目致谢。
 - **本地优先**：记录保存为 `gacha-list-<uid>.json`，采用原子写入；应用不会上传抽卡数据。
 
 ## 支持的游戏
@@ -147,6 +148,6 @@ go tool mygo vet        # go vet + MyGo UI 生命周期检查
 
 - [MyGo](https://github.com/egoist/mygo)：原生 Go UI 框架。
 - [Biligame Wiki](https://wiki.biligame.com/)：历史卡池数据。
-- [genshin-wish-export](https://github.com/Trrrrw/genshin-wish-export)、[star-rail-warp-export](https://github.com/biuuu/star-rail-warp-export)：抓取流程与千星奇域颂愿规则参考。
+- [biuuu/genshin-wish-export](https://github.com/biuuu/genshin-wish-export)、[Trrrrw/genshin-wish-export](https://github.com/Trrrrw/genshin-wish-export)、[biuuu/star-rail-warp-export](https://github.com/biuuu/star-rail-warp-export)、[earthjasonlin/zzz-signal-search-export](https://github.com/earthjasonlin/zzz-signal-search-export)：抓取流程、导出格式与千星奇域颂愿规则参考。
 
 本项目仅供个人管理抽卡记录使用。请遵守游戏服务条款；因使用本工具产生的风险由使用者自行承担。

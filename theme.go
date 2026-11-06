@@ -4,47 +4,53 @@ import "github.com/egoist/mygo/ui"
 
 // palette 是参考 Kero 的配色，按浅色和深色外观区分。
 type palette struct {
-	dark        bool
-	text        ui.Color
-	textMuted   ui.Color
-	textFaint   ui.Color
-	rowHover    ui.Color
-	rowSelected ui.Color
-	card        ui.Color
-	chip        ui.Color
-	divider     ui.Color
-	accent      ui.Color
-	attention   ui.Color
-	danger      ui.Color
+	dark         bool
+	text         ui.Color
+	textMuted    ui.Color
+	textFaint    ui.Color
+	rowHover     ui.Color
+	rowSelected  ui.Color
+	card         ui.Color
+	chip         ui.Color
+	control      ui.Color
+	controlHover ui.Color
+	divider      ui.Color
+	accent       ui.Color
+	attention    ui.Color
+	danger       ui.Color
 }
 
 var lightPalette = palette{
-	text:        ui.Hex("#1d1d1f"),
-	textMuted:   ui.Hex("#6e6e78"),
-	textFaint:   ui.Hex("#a3a3ad"),
-	rowHover:    ui.RGBA(0, 0, 0, 0.04),
-	rowSelected: ui.Hex("#ffffff"),
-	card:        ui.Hex("#ffffff"),
-	chip:        ui.RGBA(0, 0, 0, 0.045),
-	divider:     ui.RGBA(0, 0, 0, 0.06),
-	accent:      ui.Hex("#3b6cf6"),
-	attention:   ui.Hex("#c27b0f"),
-	danger:      ui.Hex("#d93a35"),
+	text:         ui.Hex("#1d1d1f"),
+	textMuted:    ui.Hex("#6e6e78"),
+	textFaint:    ui.Hex("#a3a3ad"),
+	rowHover:     ui.RGBA(0, 0, 0, 0.04),
+	rowSelected:  ui.Hex("#ffffff"),
+	card:         ui.Hex("#ffffff"),
+	chip:         ui.RGBA(0, 0, 0, 0.045),
+	control:      ui.Hex("#ffffff"),
+	controlHover: ui.Hex("#f7f7f9"),
+	divider:      ui.RGBA(0, 0, 0, 0.06),
+	accent:       ui.Hex("#3b6cf6"),
+	attention:    ui.Hex("#c27b0f"),
+	danger:       ui.Hex("#d93a35"),
 }
 
 var darkPalette = palette{
-	dark:        true,
-	text:        ui.Hex("#ececf0"),
-	textMuted:   ui.Hex("#a9a9b4"),
-	textFaint:   ui.Hex("#83838f"),
-	rowHover:    ui.RGBA(255, 255, 255, 0.05),
-	rowSelected: ui.RGBA(255, 255, 255, 0.10),
-	card:        ui.Hex("#232328"),
-	chip:        ui.RGBA(255, 255, 255, 0.07),
-	divider:     ui.RGBA(255, 255, 255, 0.07),
-	accent:      ui.Hex("#6b93ff"),
-	attention:   ui.Hex("#f0a33a"),
-	danger:      ui.Hex("#ff6961"),
+	dark:         true,
+	text:         ui.Hex("#ececf0"),
+	textMuted:    ui.Hex("#a9a9b4"),
+	textFaint:    ui.Hex("#83838f"),
+	rowHover:     ui.RGBA(255, 255, 255, 0.05),
+	rowSelected:  ui.RGBA(255, 255, 255, 0.10),
+	card:         ui.Hex("#232328"),
+	chip:         ui.RGBA(255, 255, 255, 0.07),
+	control:      ui.Hex("#404047"),
+	controlHover: ui.Hex("#4a4a52"),
+	divider:      ui.RGBA(255, 255, 255, 0.07),
+	accent:       ui.Hex("#6b93ff"),
+	attention:    ui.Hex("#f0a33a"),
+	danger:       ui.Hex("#ff6961"),
 }
 
 // channelHues 返回频段标签用的紫色和青色。

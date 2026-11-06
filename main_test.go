@@ -11,9 +11,12 @@ func TestSidebarChoosesGame(t *testing.T) {
 	a := newApp()
 	tt := ui.NewTester(a.view, 960, 680)
 
-	// 默认展示第一款游戏。
+	// 默认展示第一款游戏，侧边栏底部有设置按钮。
 	if a.selected != "genshin" || !tt.HasText("· 提瓦特大陆的旅途记录") {
 		t.Fatalf("默认选中 %q，文本 %q", a.selected, tt.Texts())
+	}
+	if _, ok := tt.Find("设置"); !ok {
+		t.Fatalf("侧边栏缺少设置按钮，文本 %q", tt.Texts())
 	}
 
 	if err := tt.Click("绝区零"); err != nil {

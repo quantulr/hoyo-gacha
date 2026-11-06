@@ -23,7 +23,8 @@ go build -o /tmp/hoyo-gacha-check .  # 仅编译检查；用 -o 指到临时目�
 
 ## 架构
 
-- `main.go`：`app` 状态、窗口与所有共享 UI。启动时遍历 `games`，在后台调用各游戏的 `load`，再回到主线程 `apply`。`content` 按 `g.body` 分发页面；顶栏刷新按钮和全窗进度弹框由 `game.refresh` / `game.fetching` 驱动。
+- `main.go`：`app` 状态、主窗口与所有共享 UI。启动时遍历 `games`，在后台调用各游戏的 `load`，再回到主线程 `apply`。`content` 按 `g.body` 分发页面；顶栏刷新按钮和全窗进度弹框由 `game.refresh` / `game.fetching` 驱动。
+- `settings.go`：Kero 风格的独立设置窗口，含「通用」「关于」两页、手动检查更新和数据目录入口；窗口控件与主窗口共用 `windowControlsFor`。
 - `games.go`：`game` 描述结构与注册表。每个游戏文件提供元数据、`gachaSpec`、`load`/`apply`、页面 `body`、频道颜色，可选 `refresh`/`fetching`/`annotate`。`games` 在 `init()` 中赋值，避免“游戏变量 → load → gameByID → games”的初始化循环。
 - `gacha.go`：共享数据模型与统计。`gachaRecord` 同时解析对象记录和原神紧凑数组；`gachaExport` 对应 `gacha-list-<uid>.json`；`newGachaData` 计算保底、等级和出金历史，并把记录翻成最新在前。`gachaSpecFor` 从游戏注册表取等级与保底规则；`gachaSpec.ranks` 按频道覆盖等级映射。
 - `fetch.go`：共享抓取基础设施。API 响应结构、`gachaLatestIDs`/`gachaIDEquals`、时区换算、`loadGachaLocal`、`mergeGachaExport`（按 id 严格并集）、原子写 `saveGachaExport`、`sanitizeURLError`。
