@@ -17,6 +17,7 @@ var genshinGame = game{
 	fetching:     (*app).genshinFetchState,
 	load:         loadGenshinData,
 	apply:        (*app).applyGenshinData,
+	annotate:     annotateGenshinLoaded,
 }
 
 // genshinSpec 是原神的等级与保底规则。
