@@ -7,11 +7,6 @@ func icon(shapes string) *ui.SVG {
 	return ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">` + shapes + `</svg>`))
 }
 
-// 应用标记：圆环。
-var logoIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-	<circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="3.4"/>
-</svg>`))
-
 // 自绘的窗口控制按钮图标，形状与 Kero 一致。
 var (
 	minimizeIcon = icon(`<path d="M3.5 8h9"/>`)

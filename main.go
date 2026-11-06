@@ -119,11 +119,8 @@ func (a *app) sidebar(c *ui.Context, pal *palette) {
 	ui.Column(c).Width(268).Shrink(0).AlignItems(ui.Stretch).Children(func() {
 		ui.Row(c).Height(60).Shrink(0).Padding(0, 12, 0, left).Gap(10).
 			AlignItems(ui.Center).DragWindow().Children(func() {
-			ui.Box(c).Size(26, 26).Shrink(0).Radius(8).Center().
-				LinearGradient(ui.LinearGradient{Angle: 135, From: ui.Hex("#5b7cfa"), To: ui.Hex("#9a6cf0")}).
-				Children(func() {
-					ui.Icon(c, logoIcon).Size(14, 14).TextColor(ui.Hex("#ffffff"))
-				})
+			ui.Image(c, appIcon).Size(26, 26).Shrink(0).Radius(6).
+				Border(0.5, ui.RGBA(255, 255, 255, 0.18))
 			ui.Column(c).Gap(1).Children(func() {
 				ui.Text(c, "hoyo-gacha").FontSize(13.5).FontWeight(600).TextColor(pal.text).SingleLine()
 				ui.Text(c, "抽卡记录管理").FontSize(11).TextColor(pal.textFaint).SingleLine()
