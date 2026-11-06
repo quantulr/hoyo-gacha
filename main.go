@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -727,6 +728,8 @@ func styleControl(b ui.Element, pal *palette, danger bool) {
 }
 
 func main() {
+	// 原生更新窗口，避免为更新功能额外依赖 WebView。
+	mygo.Use(native.Plugin)
 	a := newApp()
 	mygo.App.WhenReady(func() {
 		opts := mygo.WindowOptions{

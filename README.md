@@ -17,6 +17,7 @@ hoyo-gacha 是一款用 Go 和 [MyGo](https://github.com/egoist/mygo) 编写的�
 - **完整记录**：按卡池频段查看，最新在前；支持“仅 S / S+A / 全部”筛选，默认只看 S。
 - **自动刷新**：从本机日志/缓存中提取临时 authkey，分页请求官方接口，并按记录 id 与本地数据合并。
 - **歪卡标记**：内置历史卡池数据；限定卡池的 S 级如果不是当期 UP，会在记录里显示“歪”。
+- **自动更新**：启动后检查 GitHub Release 上的签名更新，下载后下次启动生效；发布与签名校验由 GitHub Actions 完成。
 - **本地优先**：记录保存为 `gacha-list-<uid>.json`，采用原子写入；应用不会上传抽卡数据。
 
 ## 支持的游戏
@@ -54,6 +55,26 @@ hoyo-gacha 是一款用 Go 和 [MyGo](https://github.com/egoist/mygo) 编写的�
 开发版（`go tool mygo dev`）把路径中的 `hoyo-gacha` 换成 `hoyo-gacha Dev`。放入文件后重新启动应用。
 
 同一游戏有多个账号时，每个 UID 各保存一份 `gacha-list-<uid>.json`。应用优先读取 `config.json` 中 `current` 指向的账号；没有配置时读取最近修改的文件。自动刷新与手动导入可以混用，刷新按记录 id 合并，不会丢弃本地已有的其他频段。
+
+## 自动更新与发布
+
+生产版启动约 10 秒后检查一次更新，之后每天检查。发现新版本时会显示更新说明，可下载并重启应用；开发版和无法写入安装目录的构建不会自动更新。
+
+更新只接受使用 `MYGO_UPDATER_PRIVATE_KEY` 对应私钥签名的包，公钥内嵌在 `mygo.json` 的 `updates.publicKey`。私钥只应保存在密码管理器和 GitHub Actions Secret 中，不要提交到仓库。
+
+发布新版本：
+
+1. 更新 `mygo.json` 的 `version`，并在 `CHANGELOG.md` 添加同版本段落。
+2. 提交后创建并推送 tag，例如 `git tag v0.1.0 && git push origin v0.1.0`。
+3. `.github/workflows/release.yml` 会构建 Windows amd64/arm64 包，上传到 draft release，并在全部构建成功后自动发布。
+
+首次发布前需要添加仓库 Secret：
+
+```sh
+gh secret set MYGO_UPDATER_PRIVATE_KEY < path/to/mygo-update.key
+```
+
+`mygo keygen` 默认把密钥写到 `%APPDATA%\mygo\update-keys\`。没有该 Secret，工作流无法签名更新包。
 
 ## 歪卡判定
 

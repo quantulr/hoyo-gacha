@@ -71,3 +71,10 @@ go build -o /tmp/hoyo-gacha-check .  # 仅编译检查；用 -o 指到临时目�
 
 - 用户说“提交”才 commit；说“合并”才执行 `git fetch origin && git merge --ff-only origin/main && git push origin main`。其他时候不要推送。
 - 提交信息使用 Conventional Commits，简洁说明 why；沿用仓库现有的 Co-Authored-By 尾注。
+
+## 发布与自动更新
+
+- `mygo.json` 的 `updates` 指向 GitHub Release；`updates.publicKey` 是签名公钥，私钥只保存在 GitHub Actions Secret `MYGO_UPDATER_PRIVATE_KEY`，禁止提交、打印或写入 CI 日志。
+- `.github/workflows/release.yml` 在推送 `v*` tag 时校验 tag 与 `mygo.json` 的 `version` 一致，构建 Windows amd64/arm64，上传 draft release，全部成功后自动发布；带连字符的 tag 发布为 prerelease。
+- 发版前更新 `mygo.json` 的 `version` 和 `CHANGELOG.md` 对应版本段落；更新窗口的说明来自 CHANGELOG。
+- 应用通过 `plugins/updater/native` 在启动后后台检查更新；开发构建和不可写安装目录不会自更新。
