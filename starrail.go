@@ -17,6 +17,7 @@ var starRailGame = game{
 	fetching:     (*app).starRailFetchState,
 	load:         loadStarRailData,
 	apply:        (*app).applyStarRailData,
+	annotate:     annotateStarRailLoaded,
 }
 
 // starRailSpec 是崩坏：星穹铁道的等级与保底规则。
@@ -82,6 +83,13 @@ func (a *app) refreshStarRail() {
 			a.starrailStatus = res.Message()
 		})
 	}()
+}
+
+// annotateStarRailLoaded 给刚读入的星穹铁道记录标记歪。
+func annotateStarRailLoaded(d *gachaData) {
+	if set, err := loadStarRailBanners(); err == nil {
+		annotateStarRailLost(d, set.Banners)
+	}
 }
 
 // starRailChannelColor 返回崩坏：星穹铁道各跃迁频段的标识色。
