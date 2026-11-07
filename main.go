@@ -605,6 +605,16 @@ func sectionHeading(c *ui.Context, pal *palette, title, note string) {
 }
 
 func statCards(c *ui.Context, pal *palette, g *game, d *gachaData) {
+	lost, smallPity := d.LostStats()
+	lostValue, lostNote, lostColor := "—", "暂无可判定卡池", pal.textFaint
+	if smallPity > 0 {
+		lostValue = fmt.Sprintf("%.2f%%", d.LostRate()*100)
+		lostNote = fmt.Sprintf("%d 歪 / %d 次小保底", lost, smallPity)
+		lostColor = pal.text
+		if lost > 0 {
+			lostColor = pal.danger
+		}
+	}
 	cards := []struct {
 		label string
 		value string
@@ -615,27 +625,25 @@ func statCards(c *ui.Context, pal *palette, g *game, d *gachaData) {
 		{"S 级", formatInt(d.TotalS), fmt.Sprintf("出货率 %.2f%%", d.SRate()*100), pal.attention},
 		{"A 级", formatInt(d.TotalA), fmt.Sprintf("出货率 %.2f%%", d.ARate()*100), pal.text},
 		{"平均出金", averageText(d.Average()), "抽 / S 级", pal.text},
+		{"歪卡率", lostValue, lostNote, lostColor},
 	}
+	cols := 2
 	width, _ := c.Size()
-	if width >= 860 {
-		ui.Row(c).Gap(10).Children(func() {
-			for _, card := range cards {
-				statCard(c, pal, card.label, card.value, card.note, card.color)
-			}
-		})
-		return
+	switch {
+	case width >= 980:
+		cols = len(cards)
+	case width >= 600:
+		cols = 3
 	}
-	for i := 0; i < len(cards); i += 2 {
-		ui.Row(c).Gap(10).Children(func() {
-			for _, card := range cards[i:min(i+2, len(cards))] {
-				statCard(c, pal, card.label, card.value, card.note, card.color)
-			}
-		})
-	}
+	ui.Grid(c).Columns(cols).Gap(10).Children(func() {
+		for _, card := range cards {
+			statCard(c, pal, card.label, card.value, card.note, card.color)
+		}
+	})
 }
 
 func statCard(c *ui.Context, pal *palette, label, value, note string, color ui.Color) {
-	ui.Column(c).Grow(1).MinWidth(0).Background(pal.chip).Radius(10).
+	ui.Column(c).MinWidth(0).Background(pal.chip).Radius(10).
 		Padding(13, 16).Gap(3).Children(func() {
 		ui.Text(c, label).FontSize(11.5).FontWeight(600).TextColor(pal.textMuted).SingleLine()
 		ui.Text(c, value).FontSize(23).FontWeight(650).TextColor(color).

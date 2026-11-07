@@ -168,17 +168,19 @@ func annotateGenshinLost(d *gachaData, banners []genshinBanner) {
 		if genshinBannerChannel(ch.Type) == "" {
 			continue
 		}
-		for j := range ch.Records {
+		guaranteed := false
+		// 记录最新在前，倒序遍历才能按时间顺序判断大保底。
+		for j := len(ch.Records) - 1; j >= 0; j-- {
 			r := &ch.Records[j]
 			if r.Tier != 0 {
 				continue
 			}
-			t, err := genshinBannerTime(r.Time)
-			if err != nil {
-				continue
+			var up, known bool
+			if t, err := genshinBannerTime(r.Time); err == nil {
+				up, known = genshinBannerUP(banners, ch.Type, r.Name, t)
 			}
-			up, known := genshinBannerUP(banners, ch.Type, r.Name, t)
-			r.Lost = known && !up
+			guaranteed = markBannerPull(r, guaranteed, known, up)
 		}
+		ch.countLost()
 	}
 }

@@ -282,6 +282,66 @@ func TestAnnotateGenshinLost(t *testing.T) {
 	}
 }
 
+func TestGenshinLostStats(t *testing.T) {
+	set, err := loadGenshinBanners()
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := newGenshinLostFixture()
+	annotateGenshinLost(d, set.Banners)
+
+	lost, smallPity := d.LostStats()
+	if lost != 5 || smallPity != 13 {
+		t.Fatalf("歪卡统计 %d / %d，期望 5 / 13", lost, smallPity)
+	}
+	if d.LostRate() != float64(5)/13 {
+		t.Errorf("歪卡率 %.4f，期望 %.4f", d.LostRate(), float64(5)/13)
+	}
+
+	// 歪后的下一个 S 是大保底；它可能仍是 UP，但不参与 50/50 统计。
+	wantGuaranteed := map[string]bool{"3": true, "5": true, "13": true, "16": true}
+	for _, ch := range d.Channels {
+		for _, r := range ch.Records {
+			if r.Guaranteed != wantGuaranteed[r.ID] {
+				t.Errorf("记录 %s 大保底 = %v，期望 %v", r.ID, r.Guaranteed, wantGuaranteed[r.ID])
+			}
+		}
+	}
+}
+
+func TestGenshinLostRateCard(t *testing.T) {
+	set, err := loadGenshinBanners()
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := newGenshinLostFixture()
+	annotateGenshinLost(d, set.Banners)
+
+	a := newApp()
+	a.selected = "genshin"
+	a.genshin = d
+	a.genshinLoaded = true
+	tt := ui.NewTester(a.view, 960, 680)
+	for _, text := range []string{"歪卡率", "38.46%", "5 歪 / 13 次小保底"} {
+		if !tt.HasText(text) {
+			t.Errorf("缺少文本 %q，现有 %q", text, tt.Texts())
+		}
+	}
+}
+
+func TestGenshinLostRateWithoutBannerData(t *testing.T) {
+	a := newApp()
+	a.selected = "genshin"
+	a.genshin = testGenshinData(t)
+	a.genshinLoaded = true
+	tt := ui.NewTester(a.view, 960, 680)
+	for _, text := range []string{"歪卡率", "—", "暂无可判定卡池"} {
+		if !tt.HasText(text) {
+			t.Errorf("缺少文本 %q，现有 %q", text, tt.Texts())
+		}
+	}
+}
+
 func TestGenshinLostBadge(t *testing.T) {
 	set, err := loadGenshinBanners()
 	if err != nil {

@@ -110,9 +110,11 @@ type gachaExport struct {
 // pullRecord 是一条带保底计数的抽卡记录。
 type pullRecord struct {
 	gachaRecord
-	Pity int  // 这一抽是距上一个 S 级后的第几抽
-	Tier int  // 0 = S，1 = A，2 = B
-	Lost bool // S 级不是当期 UP；常驻、邦布或缺少卡池数据时为 false
+	Pity        int  // 这一抽是距上一个 S 级后的第几抽
+	Tier        int  // 0 = S，1 = A，2 = B
+	Lost        bool // S 级不是当期 UP；常驻、邦布或缺少卡池数据时为 false
+	BannerKnown bool // 有当期卡池数据，Lost 的结果有效
+	Guaranteed  bool // 上一次限定 S 歪后触发的大保底，不计入歪卡率
 }
 
 // 记录页的筛选模式。零值默认只看 S。
@@ -138,16 +140,43 @@ func filterPullRanks(recs []pullRecord, mode int) []pullRecord {
 
 // channelStats 是一个卡池频道的统计。
 type channelStats struct {
-	Type     string
-	Name     string
-	Pulls    int
-	S        int
-	A        int
-	B        int
-	Pity     int // 距上一个 S 级已经抽了多少次
-	HardPity int
-	Average  float64      // 平均多少抽出一个 S 级
-	Records  []pullRecord // 按时间从新到旧
+	Type       string
+	Name       string
+	Pulls      int
+	S          int
+	A          int
+	B          int
+	Pity       int // 距上一个 S 级已经抽了多少次
+	HardPity   int
+	Average    float64      // 平均多少抽出一个 S 级
+	LostS      int          // 小保底中歪掉的 S 级
+	SmallPityS int          // 计入歪卡率的小保底 S 级，不含大保底
+	Records    []pullRecord // 按时间从新到旧
+}
+
+// countLost 汇总用于歪卡率的小保底次数与其中的歪卡数。
+// 大保底由上一次歪触发，必然出 UP，不计入分母。
+func (ch *channelStats) countLost() {
+	ch.LostS, ch.SmallPityS = 0, 0
+	for i := range ch.Records {
+		r := &ch.Records[i]
+		if !r.BannerKnown || r.Guaranteed {
+			continue
+		}
+		ch.SmallPityS++
+		if r.Lost {
+			ch.LostS++
+		}
+	}
+}
+
+// markBannerPull 标记一次限定 S 的卡池结果，返回下一个 S 是否处于大保底。
+// 调用方需按时间从早到晚处理同一频段的 S 级。
+func markBannerPull(r *pullRecord, guaranteed, known, up bool) bool {
+	r.BannerKnown = known
+	r.Guaranteed = guaranteed
+	r.Lost = known && !up
+	return known && !up
 }
 
 // sPull 是一次出 S 级的记录及当时用掉的抽数。
@@ -222,6 +251,24 @@ func (d *gachaData) Average() float64 {
 		return 0
 	}
 	return float64(d.TotalPulls) / float64(d.TotalS)
+}
+
+// LostStats 返回小保底中歪掉的 S 级数和小保底次数；大保底不计入分母。
+func (d *gachaData) LostStats() (lost, smallPity int) {
+	for _, ch := range d.Channels {
+		lost += ch.LostS
+		smallPity += ch.SmallPityS
+	}
+	return lost, smallPity
+}
+
+// LostRate 返回小保底中的歪卡率。
+func (d *gachaData) LostRate() float64 {
+	lost, smallPity := d.LostStats()
+	if smallPity == 0 {
+		return 0
+	}
+	return float64(lost) / float64(smallPity)
 }
 
 // loadGameData 从应用数据目录读取一款游戏的抽卡数据。
