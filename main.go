@@ -624,14 +624,14 @@ func (g *game) rankSymbol(typ string, tier int) string {
 	return rankLabel(tier)
 }
 
-// rankBadge 返回记录行里的等级徽标。原神/星穹铁道用记录的原始星级，
-// 这样千星奇域常驻颂愿的 4 星也能正确显示。
+// rankBadge 返回记录行里的等级徽标，只显示星级数字。原神/星穹铁道用
+// 记录的原始星级，这样千星奇域常驻颂愿的 4 星也能正确显示。
 func (g *game) rankBadge(rankType string, tier int) string {
 	if g.stars {
 		if rankType != "" {
-			return rankType + "星"
+			return rankType
 		}
-		return fmt.Sprintf("%d星", 5-tier)
+		return g.spec.rankFor("").rankAt(tier)
 	}
 	return rankLabel(tier)
 }

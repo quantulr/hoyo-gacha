@@ -194,11 +194,6 @@ func TestGenshinView(t *testing.T) {
 			t.Errorf("全部筛选缺少 %q，现有 %q", text, tt.Texts())
 		}
 	}
-	for _, badge := range []string{"5星", "4星", "3星"} {
-		if _, ok := tt.Find(badge); !ok {
-			t.Errorf("缺少等级徽标 %q，现有 %q", badge, tt.Texts())
-		}
-	}
 
 	if err := tt.Click("5+4 星"); err != nil {
 		t.Fatal(err)
@@ -300,11 +295,6 @@ func TestGenshinUGCView(t *testing.T) {
 	if !tt.HasText("活动A") || !tt.HasText("活动B") || !tt.HasText("共 3 条 · 最新在前") {
 		t.Errorf("全部筛选结果 %q", tt.Texts())
 	}
-	for _, badge := range []string{"5星", "4星", "3星"} {
-		if _, ok := tt.Find(badge); !ok {
-			t.Errorf("缺少等级徽标 %q，现有 %q", badge, tt.Texts())
-		}
-	}
 	if err := tt.Click("千星奇域·常驻颂愿"); err != nil {
 		t.Fatal(err)
 	}
@@ -314,11 +304,6 @@ func TestGenshinUGCView(t *testing.T) {
 	}
 	if !tt.HasText("仅 4 星") || !tt.HasText("4+3 星") {
 		t.Errorf("常驻颂愿缺少星级筛选，现有 %q", tt.Texts())
-	}
-	for _, badge := range []string{"4星", "3星", "2星"} {
-		if _, ok := tt.Find(badge); !ok {
-			t.Errorf("缺少等级徽标 %q，现有 %q", badge, tt.Texts())
-		}
 	}
 	if err := tt.Click("仅 4 星"); err != nil {
 		t.Fatal(err)

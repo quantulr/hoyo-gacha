@@ -133,11 +133,6 @@ func TestStarRailView(t *testing.T) {
 			t.Errorf("全部筛选缺少 %q，现有 %q", text, tt.Texts())
 		}
 	}
-	for _, badge := range []string{"5星", "4星", "3星"} {
-		if _, ok := tt.Find(badge); !ok {
-			t.Errorf("缺少等级徽标 %q，现有 %q", badge, tt.Texts())
-		}
-	}
 
 	if err := tt.Click("5+4 星"); err != nil {
 		t.Fatal(err)

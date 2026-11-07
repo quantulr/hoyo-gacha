@@ -32,3 +32,28 @@ func TestSidebarChoosesGame(t *testing.T) {
 		t.Errorf("按快捷键后选中 %q，文本 %q", a.selected, tt.Texts())
 	}
 }
+
+// 记录行徽标只显示星级数字，绝区零仍用 S/A/B。
+func TestRankBadge(t *testing.T) {
+	cases := []struct {
+		game     *game
+		rankType string
+		tier     int
+		want     string
+	}{
+		{&genshinGame, "5", 0, "5"},
+		{&genshinGame, "4", 1, "4"},
+		{&genshinGame, "3", 2, "3"},
+		{&genshinGame, "4", 0, "4"}, // 千星奇域常驻颂愿的最高档是 4 星
+		{&starRailGame, "5", 0, "5"},
+		{&zzzGame, "4", 0, "S"},
+		{&zzzGame, "3", 1, "A"},
+		{&zzzGame, "2", 2, "B"},
+	}
+	for _, tc := range cases {
+		if got := tc.game.rankBadge(tc.rankType, tc.tier); got != tc.want {
+			t.Errorf("%s rankBadge(%q, %d) = %q，期望 %q",
+				tc.game.id, tc.rankType, tc.tier, got, tc.want)
+		}
+	}
+}
