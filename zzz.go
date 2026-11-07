@@ -18,6 +18,7 @@ var zzzGame = game{
 	fetching:     (*app).zzzFetchState,
 	load:         loadZZZData,
 	apply:        (*app).applyZZZData,
+	data:         (*app).zzzData,
 	noRecords:    (*app).zzzNoRecords,
 	annotate:     annotateZZZLoaded,
 }
@@ -53,6 +54,8 @@ func newZZZData(exp *gachaExport) *gachaData {
 func (a *app) applyZZZData(d *gachaData, err error) {
 	a.zzz, a.zzzErr, a.zzzLoaded = d, err, true
 }
+
+func (a *app) zzzData() *gachaData { return a.zzz }
 
 // zzzNoRecords 表示已读取但没有记录，页面中央会提供导入按钮。
 func (a *app) zzzNoRecords() bool {

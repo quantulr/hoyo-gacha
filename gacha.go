@@ -325,7 +325,14 @@ func loadGachaGame(root, game string) (*gachaData, error) {
 	if current == "" {
 		current = legacyCurrent(dir)
 	}
-	path, err := gachaFilePath(dir, current)
+	return loadGachaAccount(root, game, current)
+}
+
+// loadGachaAccount 读取指定账号的抽卡数据；uid 为空时退回最近修改的文件。
+// 读入成功会把统一配置的 current 指向文件里的 UID。
+func loadGachaAccount(root, game, uid string) (*gachaData, error) {
+	dir := gameDataDir(root, game)
+	path, err := gachaFilePath(dir, uid)
 	if errors.Is(err, errNoGachaFile) {
 		return nil, nil
 	}

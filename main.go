@@ -33,6 +33,9 @@ type app struct {
 	importing bool   // 正在选择或写入导入文件
 	toast     string // 待显示的导入结果，显示后清空
 
+	dataRoot    string           // 应用数据根目录，用于列出账号
+	accountOpen map[string]*bool // 各游戏账号菜单是否展开
+
 	genshin       *gachaData
 	genshinErr    error
 	genshinLoaded bool
@@ -215,6 +218,9 @@ func (a *app) content(c *ui.Context, pal *palette, g *game) {
 				ui.Text(c, "· "+g.tagline).FontSize(12.5).TextColor(pal.textFaint).
 					SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
 				ui.Spacer(c)
+				if g.data != nil {
+					a.accountMenu(c, pal, g, g.data(a))
+				}
 				if !noRecords && g.load != nil && g.apply != nil {
 					a.importButton(c, pal, g)
 				}
@@ -976,6 +982,10 @@ func main() {
 	mygo.Use(native.Plugin)
 	a := newApp()
 	mygo.App.WhenReady(func() {
+		// 账号切换需要扫描数据目录；读不到时只是不显示账号入口。
+		if root, err := mygo.App.Path(mygo.PathUserData); err == nil {
+			a.dataRoot = root
+		}
 		opts := appWindowOptions(mygo.WindowOptions{
 			Title:     "Hoyo Gacha",
 			Width:     960,

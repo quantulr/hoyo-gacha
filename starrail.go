@@ -19,6 +19,7 @@ var starRailGame = game{
 	fetching:     (*app).starRailFetchState,
 	load:         loadStarRailData,
 	apply:        (*app).applyStarRailData,
+	data:         (*app).starRailData,
 	noRecords:    (*app).starRailNoRecords,
 	annotate:     annotateStarRailLoaded,
 }
@@ -44,6 +45,8 @@ func parseStarRail(data []byte) (*gachaData, error) {
 func (a *app) applyStarRailData(d *gachaData, err error) {
 	a.starrail, a.starrailErr, a.starrailLoaded = d, err, true
 }
+
+func (a *app) starRailData() *gachaData { return a.starrail }
 
 // starRailNoRecords 表示已读取但没有记录，页面中央会提供导入按钮。
 func (a *app) starRailNoRecords() bool {

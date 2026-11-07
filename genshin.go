@@ -19,6 +19,7 @@ var genshinGame = game{
 	fetching:     (*app).genshinFetchState,
 	load:         loadGenshinData,
 	apply:        (*app).applyGenshinData,
+	data:         (*app).genshinData,
 	noRecords:    (*app).genshinNoRecords,
 	annotate:     annotateGenshinLoaded,
 }
@@ -44,6 +45,8 @@ func loadGenshinData() (*gachaData, error) {
 func (a *app) applyGenshinData(d *gachaData, err error) {
 	a.genshin, a.genshinErr, a.genshinLoaded = d, err, true
 }
+
+func (a *app) genshinData() *gachaData { return a.genshin }
 
 // genshinNoRecords 表示已读取但没有记录，页面中央会提供导入按钮。
 func (a *app) genshinNoRecords() bool {

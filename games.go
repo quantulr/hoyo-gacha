@@ -19,8 +19,9 @@ type game struct {
 	fetching     func(a *app) (status string, ok bool) // 刷新状态
 	load         func() (*gachaData, error)
 	apply        func(a *app, d *gachaData, err error)
-	noRecords    func(a *app) bool  // 读入完成但没有记录，页面中央已有导入按钮
-	annotate     func(d *gachaData) // 读入后的补充处理，如标记歪
+	data         func(a *app) *gachaData // 已读入的数据，未读完时为 nil
+	noRecords    func(a *app) bool       // 读入完成但没有记录，页面中央已有导入按钮
+	annotate     func(d *gachaData)      // 读入后的补充处理，如标记歪
 }
 
 // games 是侧边栏里的全部游戏，顺序即显示顺序。在 init 里赋值，避免各游戏
