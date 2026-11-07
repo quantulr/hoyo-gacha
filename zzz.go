@@ -62,7 +62,7 @@ func (a *app) zzzNoRecords() bool {
 // zzzBody 按数据状态展示绝区零的抽卡概览。
 func (a *app) zzzBody(c *ui.Context, pal *palette, g *game) {
 	a.gachaBody(c, pal, g, a.zzz, a.zzzErr, a.zzzLoaded, &a.zzzView,
-		"导入 gacha-list-*.json 文件，或先在游戏内打开「调频记录」页，再点右上角「刷新」获取。")
+		"导入 gacha-list-*.json 文件，或先在游戏内打开「调频记录」页，再点「刷新记录」获取。")
 }
 
 func (a *app) zzzFetchState() (string, bool) {

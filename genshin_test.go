@@ -146,13 +146,18 @@ func TestGenshinEmptyState(t *testing.T) {
 	a.selected = "genshin"
 	a.genshinLoaded = true
 	tt := ui.NewTester(a.view, 960, 680)
-	for _, text := range []string{"还没有抽卡记录", "导入 gacha-list-*.json", "导入记录", "刷新"} {
+	for _, text := range []string{
+		"还没有抽卡记录", "导入 gacha-list-*.json", "再点「刷新记录」获取", "导入记录", "刷新记录",
+	} {
 		if !tt.HasText(text) {
 			t.Errorf("缺少文本 %q，现有 %q", text, tt.Texts())
 		}
 	}
 	if _, ok := tt.Find("导入"); ok {
 		t.Errorf("空状态不应在标题栏重复显示导入按钮，文本 %q", tt.Texts())
+	}
+	if _, ok := tt.Find("刷新"); ok {
+		t.Errorf("空状态不应在标题栏重复显示刷新按钮，文本 %q", tt.Texts())
 	}
 	if tt.HasText("无法读取") {
 		t.Errorf("没有文件时不应显示读取失败，现有 %q", tt.Texts())
@@ -176,6 +181,9 @@ func TestGenshinView(t *testing.T) {
 	}
 	if _, ok := tt.Find("导入"); !ok {
 		t.Errorf("有记录时标题栏应保留导入按钮，文本 %q", tt.Texts())
+	}
+	if _, ok := tt.Find("刷新"); !ok {
+		t.Errorf("有记录时标题栏应保留刷新按钮，文本 %q", tt.Texts())
 	}
 
 	if err := tt.Click("记录"); err != nil {

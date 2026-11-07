@@ -206,6 +206,8 @@ func (a *app) content(c *ui.Context, pal *palette, g *game) {
 		card := ui.Column(c).Grow(1).MinHeight(0).Radius(14).Background(pal.card).Clip()
 		paned(card, pal)
 		card.Children(func() {
+			// 没有记录时页面中央已有导入和刷新按钮，标题栏不再重复。
+			noRecords := g.noRecords != nil && g.noRecords(a)
 			ui.Row(c).Height(44).Shrink(0).Padding(0, 10, 0, 20).Gap(8).
 				AlignItems(ui.Center).DragWindow().Children(func() {
 				alignIconText(gameImage(c, g, 18, pal))
@@ -213,11 +215,10 @@ func (a *app) content(c *ui.Context, pal *palette, g *game) {
 				ui.Text(c, "· "+g.tagline).FontSize(12.5).TextColor(pal.textFaint).
 					SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
 				ui.Spacer(c)
-				// 没有记录时页面中央已有导入按钮，标题栏不再重复。
-				if g.load != nil && g.apply != nil && (g.noRecords == nil || !g.noRecords(a)) {
+				if !noRecords && g.load != nil && g.apply != nil {
 					a.importButton(c, pal, g)
 				}
-				if g.refresh != nil && g.fetching != nil {
+				if !noRecords && g.refresh != nil && g.fetching != nil {
 					_, fetching := g.fetching(a)
 					a.refreshButton(c, pal, g.id+"-refresh", fetching, func() { g.refresh(a) })
 				}
@@ -259,7 +260,18 @@ func (a *app) gachaBody(c *ui.Context, pal *palette, g *game, d *gachaData, err 
 	case err != nil:
 		a.messageBody(c, pal, g, "无法读取"+g.name+"抽卡数据", err.Error(), nil)
 	case d == nil || d.TotalPulls == 0:
-		a.messageBody(c, pal, g, "还没有抽卡记录", emptyTip, func() { a.importGacha(g) })
+		actions := []messageAction{{
+			key: "import-" + g.id, label: "导入记录", busyLabel: "导入中…",
+			busy: a.importing, primary: true, onClick: func() { a.importGacha(g) },
+		}}
+		if g.refresh != nil && g.fetching != nil {
+			_, fetching := g.fetching(a)
+			actions = append(actions, messageAction{
+				key: g.id + "-refresh-center", label: "刷新记录", busyLabel: "刷新中…",
+				busy: fetching, onClick: func() { g.refresh(a) },
+			})
+		}
+		a.messageBody(c, pal, g, "还没有抽卡记录", emptyTip, actions)
 	default:
 		ui.Column(c).Grow(1).MinHeight(0).Children(func() {
 			ui.Row(c).Shrink(0).Padding(14, 28, 8, 28).Children(func() {
@@ -400,39 +412,67 @@ func rankFilter(c *ui.Context, pal *palette, sel *int, g *game, ch *channelStats
 	segmented(c, pal, sel, "筛选", labels)
 }
 
-func (a *app) messageBody(c *ui.Context, pal *palette, g *game, title, detail string, action func()) {
+// messageAction 是消息页中央的操作按钮。
+type messageAction struct {
+	key       string
+	label     string
+	busyLabel string
+	busy      bool
+	primary   bool
+	onClick   func()
+}
+
+func (a *app) messageBody(c *ui.Context, pal *palette, g *game, title, detail string, actions []messageAction) {
 	ui.Column(c).Grow(1).MinHeight(0).Center().Padding(24).Children(func() {
 		gameImage(c, g, 56, pal).Margin(0, 0, 18, 0).
 			Shadow(0, 2, 8, 0, ui.RGBA(0, 0, 0, 0.12))
 		ui.Text(c, title).FontSize(19).FontWeight(650).TextColor(pal.text)
 		ui.Text(c, detail).FontSize(13).TextColor(pal.textMuted).
 			MaxWidth(420).TextAlign(ui.Center).LineHeight(1.45).Margin(8, 0, 0, 0)
-		if action != nil {
-			importLabel := "导入记录"
-			if a.importing {
-				importLabel = "导入中…"
-			}
-			b := ui.ButtonBase(c.Key("import-"+g.id)).Height(30).Shrink(0).Padding(0, 16).
-				Radius(7).Center().AlignItems(ui.Center).Label(importLabel).
-				Disabled(a.importing).Margin(18, 0, 0, 0)
-			bg := pal.accent
-			switch {
-			case b.Pressed():
-				bg = bg.Mix(ui.Hex("#000000"), 0.08)
-			case b.Hovered():
-				bg = bg.Mix(ui.Hex("#ffffff"), 0.08)
-			}
-			b.Background(bg)
-			raised(b, pal)
-			b.Children(func() {
-				ui.Text(c, importLabel).FontSize(13).FontWeight(500).
-					TextColor(ui.Hex("#ffffff")).SingleLine()
+		if len(actions) > 0 {
+			ui.Row(c).Gap(10).Margin(18, 0, 0, 0).Children(func() {
+				for _, action := range actions {
+					a.messageButton(c, pal, action)
+				}
 			})
-			if b.Clicked() {
-				action()
-			}
 		}
 	})
+}
+
+func (a *app) messageButton(c *ui.Context, pal *palette, action messageAction) {
+	text := action.label
+	if action.busy {
+		text = action.busyLabel
+	}
+	b := ui.ButtonBase(c.Key(action.key)).Height(30).Shrink(0).Padding(0, 16).
+		Radius(7).Center().AlignItems(ui.Center).Label(text).Disabled(action.busy)
+	bg, fg := pal.chip, pal.textMuted
+	if action.primary {
+		bg, fg = pal.accent, ui.Hex("#ffffff")
+		switch {
+		case b.Pressed():
+			bg = bg.Mix(ui.Hex("#000000"), 0.08)
+		case b.Hovered():
+			bg = bg.Mix(ui.Hex("#ffffff"), 0.08)
+		}
+	} else {
+		switch {
+		case action.busy:
+			fg = pal.textFaint
+		case b.Hovered():
+			bg, fg = pal.rowHover, pal.text
+		}
+	}
+	b.Background(bg)
+	if action.primary {
+		raised(b, pal)
+	}
+	b.Children(func() {
+		ui.Text(c, text).FontSize(13).FontWeight(500).TextColor(fg).SingleLine()
+	})
+	if b.Clicked() && action.onClick != nil {
+		action.onClick()
+	}
 }
 
 // gachaOverview 是仪表盘：概览、保底和最近出金。

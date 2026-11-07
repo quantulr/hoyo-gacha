@@ -53,7 +53,7 @@ func (a *app) starRailNoRecords() bool {
 // starrailBody 按数据状态展示崩坏：星穹铁道的抽卡概览。
 func (a *app) starrailBody(c *ui.Context, pal *palette, g *game) {
 	a.gachaBody(c, pal, g, a.starrail, a.starrailErr, a.starrailLoaded, &a.starrailView,
-		"导入 gacha-list-*.json 文件，或先在游戏内打开「跃迁记录」页，再点右上角「刷新」获取。")
+		"导入 gacha-list-*.json 文件，或先在游戏内打开「跃迁记录」页，再点「刷新记录」获取。")
 }
 
 func (a *app) starRailFetchState() (string, bool) {
