@@ -1,7 +1,7 @@
 {
   "name": "hoyo-gacha",
   "identifier": "io.github.quantulr.hoyogacha",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "updates": {
     "publicKey": "ETi3lvNgWt5I7tTNNU22W/qe0Vv9Lxlao+/CSb/grRY=",
     "github": "quantulr/hoyo-gacha"

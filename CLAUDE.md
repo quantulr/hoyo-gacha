@@ -4,9 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概览
 
-hoyo-gacha 是一个用 Go + MyGo（`github.com/egoist/mygo`）构建的原生桌面抽卡记录管理器，支持原神（含千星奇域颂愿）、崩坏：星穹铁道、绝区零。界面全部由 Go 的 `mygo/ui` 描述，没有前端构建步骤。
+hoyo-gacha 是一个用 Go 1.27.3 + MyGo v0.8.1（`github.com/egoist/mygo`）构建的原生桌面抽卡记录管理器，支持原神（含千星奇域颂愿）、崩坏：星穹铁道、绝区零。界面全部由 Go 的 `mygo/ui` 描述，没有前端构建步骤。
 
-抽卡记录有两种来源：导入 `gacha-list-<uid>.json`，或从本机游戏日志/网页缓存中提取临时 authkey 链接后请求官方接口。应用数据位于 `mygo.App.Path(mygo.PathUserData)/data/<game>/`；Windows 生产版在 `%APPDATA%\hoyo-gacha`，开发版在 `%APPDATA%\hoyo-gacha Dev`。
+抽卡记录有两种来源：导入 `gacha-list-<uid>.json`，或从本机游戏日志/网页缓存中提取临时 authkey 链接后请求官方接口。应用数据位于 `mygo.App.Path(mygo.PathUserData)/data/<game>/`；`PathUserData` 由 MyGo 的 `mygo.json` `name` 决定，因此该字段必须保持为 `hoyo-gacha`。Windows 生产版在 `%APPDATA%\hoyo-gacha`，开发版在 `%APPDATA%\hoyo-gacha Dev`。
+
+数据目录里没有 `gacha-list-*.json` 时，`loadGachaDir` 返回 `nil, nil`，界面显示导入或刷新引导，而不是读取失败。手动导入会校验 UID（仅数字、最多 20 位）和卡池频道，写入 `data/<game>/gacha-list-<uid>.json`，并把 UID 写入 `config.json` 的 `current`；同 UID 导入会覆盖原文件。
 
 ## 常用命令
 
@@ -25,9 +27,9 @@ go build -o /tmp/hoyo-gacha-check .  # 仅编译检查；用 -o 指到临时目�
 
 - `main.go`：`app` 状态、主窗口与所有共享 UI。启动时遍历 `games`，在后台调用各游戏的 `load`，再回到主线程 `apply`。`content` 按 `g.body` 分发页面；顶栏刷新按钮和全窗进度弹框由 `game.refresh` / `game.fetching` 驱动。
 - `settings.go`：Kero 风格的独立设置窗口，含「通用」「关于」两页、手动检查更新和数据目录入口；窗口控件与主窗口共用 `windowControlsFor`。
-- `import.go`：右上角和空状态里的导入按钮，选择 `gacha-list-*.json` 后校验 UID/卡池、写入数据目录并更新 `config.json`。
+- `import.go`：右上角和空状态里的导入按钮，通过 `mygo.Dialog.Open` 选择 `gacha-list-*.json`；校验 UID 与文件所含频道是否属于当前游戏，原子写入数据目录并更新 `config.json` 的 `current`，然后重新 `load`/`apply`。导入结果通过 `a.toast` 在 UI 线程显示。
 - `games.go`：`game` 描述结构与注册表。每个游戏文件提供元数据、`gachaSpec`、`load`/`apply`、页面 `body`、频道颜色，可选 `refresh`/`fetching`/`annotate`。`games` 在 `init()` 中赋值，避免“游戏变量 → load → gameByID → games”的初始化循环。
-- `gacha.go`：共享数据模型与统计。`gachaRecord` 同时解析对象记录和原神紧凑数组；`gachaExport` 对应 `gacha-list-<uid>.json`；`newGachaData` 计算保底、等级和出金历史，并把记录翻成最新在前。`gachaSpecFor` 从游戏注册表取等级与保底规则；`gachaSpec.ranks` 按频道覆盖等级映射。
+- `gacha.go`：共享数据模型与统计。`gachaRecord` 同时解析对象记录和原神紧凑数组；`gachaExport` 对应 `gacha-list-<uid>.json`；`newGachaData` 计算保底、等级和出金历史，并把记录翻成最新在前。`gachaSpecFor` 从游戏注册表取等级与保底规则；`gachaSpec.ranks` 按频道覆盖等级映射。`loadGachaDir` 在没有任何导出文件时返回 `nil, nil`，读入成功后用文件 UID 校正 `config.json` 的 `current`（保留其他键）。
 - `fetch.go`：共享抓取基础设施。API 响应结构、`gachaLatestIDs`/`gachaIDEquals`、时区换算、`loadGachaLocal`、`mergeGachaExport`（按 id 严格并集）、原子写 `saveGachaExport`、`sanitizeURLError`。
 - 每个游戏两份文件：`<game>.go`（描述符与 UI）和 `<game>_fetch.go`（日志/缓存定位、链接解析、分页抓取）。ZZZ、星穹铁道和原神的卡池歪标记分别在 `zzz_banners.go`、`starrail_banners.go`、`genshin_banners.go`，对应的 `assets/*-banners.json` 通过 `go:embed` 内嵌；卡池时间按 UTC+8。原神卡池只覆盖角色/武器活动祈愿，集录祈愿和千星奇域颂愿暂不判定。
 - UI 测试用 `ui.NewTester(a.view, 960, 680)` 配合 `HasText`/`Click`，不需要真实窗口。
