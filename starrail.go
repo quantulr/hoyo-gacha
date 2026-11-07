@@ -46,9 +46,6 @@ func (a *app) applyStarRailData(d *gachaData, err error) {
 
 // starrailBody 按数据状态展示崩坏：星穹铁道的抽卡概览。
 func (a *app) starrailBody(c *ui.Context, pal *palette, g *game) {
-	if a.starrailStatus != "" && !a.starrailFetching {
-		a.statusRow(c, pal, a.starrailStatus)
-	}
 	a.gachaBody(c, pal, g, a.starrail, a.starrailErr, a.starrailLoaded, &a.starrailView,
 		"导入 gacha-list-*.json 文件，或先在游戏内打开「跃迁记录」页，再点右上角「刷新」获取。")
 }
@@ -82,7 +79,8 @@ func (a *app) refreshStarRail() {
 				a.starrailToast = "刷新成功，但读取数据失败：" + loadErr.Error()
 				return
 			}
-			a.starrailStatus = res.Message()
+			a.starrailStatus = ""
+			a.starrailToast = res.Message()
 		})
 	}()
 }

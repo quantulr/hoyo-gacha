@@ -311,14 +311,6 @@ func (a *app) importButton(c *ui.Context, pal *palette, g *game) {
 	})
 }
 
-// statusRow 显示刷新进度或结果。
-func (a *app) statusRow(c *ui.Context, pal *palette, status string) {
-	ui.Row(c).Shrink(0).Padding(8, 28, 0, 28).Children(func() {
-		ui.Text(c, status).FontSize(11.5).TextColor(pal.textFaint).
-			SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
-	})
-}
-
 // refreshStatus 返回正在进行的刷新状态；没有刷新时 ok 为 false。
 func (a *app) refreshStatus() (string, bool) {
 	for i := range games {

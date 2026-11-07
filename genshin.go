@@ -46,9 +46,6 @@ func (a *app) applyGenshinData(d *gachaData, err error) {
 
 // genshinBody 按数据状态展示原神的抽卡概览。
 func (a *app) genshinBody(c *ui.Context, pal *palette, g *game) {
-	if a.genshinStatus != "" && !a.genshinFetching {
-		a.statusRow(c, pal, a.genshinStatus)
-	}
 	a.gachaBody(c, pal, g, a.genshin, a.genshinErr, a.genshinLoaded, &a.genshinView,
 		"导入 gacha-list-*.json 文件，或先在游戏内打开「祈愿记录」或「颂愿」页，再点右上角「刷新」获取。")
 }
@@ -82,7 +79,8 @@ func (a *app) refreshGenshin() {
 				a.genshinToast = "刷新成功，但读取数据失败：" + loadErr.Error()
 				return
 			}
-			a.genshinStatus = res.Message()
+			a.genshinStatus = ""
+			a.genshinToast = res.Message()
 		})
 	}()
 }

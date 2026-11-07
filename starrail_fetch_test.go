@@ -284,7 +284,17 @@ func TestStarRailRefreshButton(t *testing.T) {
 	if !tt.HasText("刷新") {
 		t.Errorf("缺少刷新按钮，现有 %q", tt.Texts())
 	}
+	if tt.HasText("已是最新，共 6 条记录") {
+		t.Errorf("刷新结果不应显示在页面顶部，现有 %q", tt.Texts())
+	}
+
+	a.starrailStatus = ""
+	a.starrailToast = "已是最新，共 6 条记录"
+	tt.Frame()
 	if !tt.HasText("已是最新，共 6 条记录") {
-		t.Errorf("缺少刷新状态，现有 %q", tt.Texts())
+		t.Errorf("缺少刷新结果 toast，现有 %q", tt.Texts())
+	}
+	if a.starrailToast != "" {
+		t.Error("toast 应只显示一次")
 	}
 }

@@ -55,9 +55,6 @@ func (a *app) applyZZZData(d *gachaData, err error) {
 
 // zzzBody 按数据状态展示绝区零的抽卡概览。
 func (a *app) zzzBody(c *ui.Context, pal *palette, g *game) {
-	if a.zzzStatus != "" && !a.zzzFetching {
-		a.statusRow(c, pal, a.zzzStatus)
-	}
 	a.gachaBody(c, pal, g, a.zzz, a.zzzErr, a.zzzLoaded, &a.zzzView,
 		"导入 gacha-list-*.json 文件，或先在游戏内打开「调频记录」页，再点右上角「刷新」获取。")
 }
@@ -91,7 +88,8 @@ func (a *app) refreshZZZ() {
 				a.zzzToast = "刷新成功，但读取数据失败：" + loadErr.Error()
 				return
 			}
-			a.zzzStatus = res.Message()
+			a.zzzStatus = ""
+			a.zzzToast = res.Message()
 		})
 	}()
 }
