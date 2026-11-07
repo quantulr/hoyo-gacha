@@ -52,11 +52,13 @@ hoyo-gacha 是一款用 Go 和 [MyGo](https://github.com/egoist/mygo) 编写的�
 
 | 游戏 | 生产版目录 |
 | --- | --- |
-| 原神 | `%APPDATA%\hoyo-gacha\data\genshin\` |
-| 崩坏：星穹铁道 | `%APPDATA%\hoyo-gacha\data\starrail\` |
-| 绝区零 | `%APPDATA%\hoyo-gacha\data\zzz\` |
+| 原神 | `%APPDATA%\Hoyo Gacha\data\genshin\` |
+| 崩坏：星穹铁道 | `%APPDATA%\Hoyo Gacha\data\starrail\` |
+| 绝区零 | `%APPDATA%\Hoyo Gacha\data\zzz\` |
 
-开发版（`go tool mygo dev`）把路径中的 `hoyo-gacha` 换成 `hoyo-gacha Dev`。应用会读取文件中的 UID，并写入该目录 `config.json` 的 `current`。
+开发版（`go tool mygo dev`）使用 `%APPDATA%\Hoyo Gacha Dev`。应用会读取文件中的 UID，并写入该目录 `config.json` 的 `current`。
+
+0.3.0 及更早版本的数据目录是 `%APPDATA%\hoyo-gacha`。升级后把该目录里的文件复制到 `%APPDATA%\Hoyo Gacha` 即可保留已有记录。
 
 如果数据目录里还没有 `gacha-list-*.json`，应用会提示导入文件，或先在游戏内打开记录页后点「刷新」获取。
 
@@ -101,8 +103,8 @@ gh secret set MYGO_UPDATER_PRIVATE_KEY < path/to/mygo-update.key
 
 | 版本 | 数据根目录 |
 | --- | --- |
-| 生产构建 | `%APPDATA%\hoyo-gacha` |
-| `mygo dev` | `%APPDATA%\hoyo-gacha Dev` |
+| 生产构建 | `%APPDATA%\Hoyo Gacha` |
+| `mygo dev` | `%APPDATA%\Hoyo Gacha Dev` |
 
 每款游戏的数据位于 `data\<game>\`：
 
