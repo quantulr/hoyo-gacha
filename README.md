@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="resources/icon.png" width="96" height="96" alt="hoyo-gacha">
+  <img src="resources/icon.png" width="96" height="96" alt="Hoyo Gacha">
 </p>
 
-<h1 align="center">hoyo-gacha</h1>
+<h1 align="center">Hoyo Gacha</h1>
 
 <p align="center">原神 · 崩坏：星穹铁道 · 绝区零 抽卡记录管理器</p>
 
-hoyo-gacha 是一款用 Go 和 [MyGo](https://github.com/egoist/mygo) 编写的原生桌面应用。它把三款游戏的抽卡记录集中到一个窗口里，展示抽数、出金率、保底进度和完整记录，并能从本机游戏日志/网页缓存中自动读取最新记录。界面全部由 Go 描述，没有 Web 前端，也没有前端构建步骤。
+Hoyo Gacha 是一款用 Go 和 [MyGo](https://github.com/egoist/mygo) 编写的原生桌面应用。它把三款游戏的抽卡记录集中到一个窗口里，展示抽数、出金率、保底进度和完整记录，并能从本机游戏日志/网页缓存中自动读取最新记录。界面全部由 Go 描述，没有 Web 前端，也没有前端构建步骤。
 
 > 本项目是非官方工具，与米哈游 / HoYoverse 无关联。
 
@@ -39,7 +39,7 @@ hoyo-gacha 是一款用 Go 和 [MyGo](https://github.com/egoist/mygo) 编写的�
 ### 自动刷新
 
 1. 在游戏内打开上表对应的记录页。这一步会让客户端在日志或网页缓存里写入带临时 authkey 的链接。
-2. 切回 hoyo-gacha，选择游戏，点右上角「刷新」。
+2. 切回 Hoyo Gacha，选择游戏，点右上角「刷新」。
 3. 刷新会依次确认账号、读取本地数据、按频段翻页抓取并合并；完成后概览与记录页立即更新。
 
 如果提示 authkey 失效，重新打开游戏内记录页再刷新即可。authkey 只在本次抓取期间使用，不会被保存。

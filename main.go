@@ -135,7 +135,7 @@ func (a *app) sidebar(c *ui.Context, pal *palette) {
 			alignIconText(ui.Image(c, appIcon).Size(26, 26).Shrink(0).Radius(6).
 				Border(0.5, ui.RGBA(255, 255, 255, 0.18)))
 			ui.Column(c).Gap(1).Children(func() {
-				ui.Text(c, "hoyo-gacha").FontSize(13.5).FontWeight(600).TextColor(pal.text).SingleLine()
+				ui.Text(c, "Hoyo Gacha").FontSize(13.5).FontWeight(600).TextColor(pal.text).SingleLine()
 				ui.Text(c, "抽卡记录管理").FontSize(11).TextColor(pal.textFaint).SingleLine()
 			})
 		})
@@ -934,7 +934,7 @@ func main() {
 	a := newApp()
 	mygo.App.WhenReady(func() {
 		opts := appWindowOptions(mygo.WindowOptions{
-			Title:     "hoyo-gacha",
+			Title:     "Hoyo Gacha",
 			Width:     960,
 			Height:    680,
 			MinWidth:  720,

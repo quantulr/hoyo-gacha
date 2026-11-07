@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概览
 
-hoyo-gacha 是一个用 Go 1.27.3 + MyGo v0.8.1（`github.com/egoist/mygo`）构建的原生桌面抽卡记录管理器，支持原神（含千星奇域颂愿）、崩坏：星穹铁道、绝区零。界面全部由 Go 的 `mygo/ui` 描述，没有前端构建步骤。
+Hoyo Gacha 是一个用 Go 1.27.3 + MyGo v0.8.1（`github.com/egoist/mygo`）构建的原生桌面抽卡记录管理器，支持原神（含千星奇域颂愿）、崩坏：星穹铁道、绝区零。界面全部由 Go 的 `mygo/ui` 描述，没有前端构建步骤。
 
 抽卡记录有两种来源：导入 `gacha-list-<uid>.json`，或从本机游戏日志/网页缓存中提取临时 authkey 链接后请求官方接口。应用数据位于 `mygo.App.Path(mygo.PathUserData)/data/<game>/`；`PathUserData` 由 MyGo 的 `mygo.json` `name` 决定，修改 `name` 会改变数据目录。Windows 生产版在 `%APPDATA%\Hoyo Gacha`，开发版在 `%APPDATA%\Hoyo Gacha Dev`；0.3.0 及更早版本使用 `%APPDATA%\hoyo-gacha`，升级后需手动迁移。
 

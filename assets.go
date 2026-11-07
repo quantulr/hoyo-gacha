@@ -16,11 +16,11 @@ var assetFiles embed.FS
 func gameArt(name string) *ui.Bitmap {
 	data, err := assetFiles.ReadFile("assets/" + name)
 	if err != nil {
-		panic("hoyo-gacha: " + err.Error())
+		panic("Hoyo Gacha: " + err.Error())
 	}
 	b, err := ui.DecodeBitmap(data)
 	if err != nil {
-		panic("hoyo-gacha: " + err.Error())
+		panic("Hoyo Gacha: " + err.Error())
 	}
 	return b
 }

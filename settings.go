@@ -136,7 +136,7 @@ func (a *app) settingsContent(c *ui.Context, pal *palette) {
 
 func (a *app) generalSettings(c *ui.Context, pal *palette) {
 	settingsGroup(c, pal, "更新", "", func() {
-		settingRow(c, pal, "当前版本", "hoyo-gacha "+versionText()+"。启动后会自动检查更新，下载后下次启动生效。", func() {
+		settingRow(c, pal, "当前版本", "Hoyo Gacha "+versionText()+"。启动后会自动检查更新，下载后下次启动生效。", func() {
 			settingsButton(c, pal, "check-updates", "检查更新", nil, func() {
 				updater.CheckForUpdates()
 			})
@@ -163,7 +163,7 @@ func (a *app) aboutSettings(c *ui.Context, pal *palette) {
 	ui.Column(c).AlignItems(ui.Center).Padding(4, 0, 14, 0).Children(func() {
 		ui.Image(c, appIcon).Size(72, 72).Radius(16).Border(0.5, border).
 			Shadow(0, 6, 16, -8, ui.RGBA(0, 0, 0, 0.28))
-		ui.Text(c, "hoyo-gacha").FontSize(21).FontWeight(650).TextColor(pal.text).
+		ui.Text(c, "Hoyo Gacha").FontSize(21).FontWeight(650).TextColor(pal.text).
 			Margin(14, 0, 2, 0)
 		ui.Text(c, "原神 · 崩坏：星穹铁道 · 绝区零 抽卡记录管理器").
 			FontSize(12.5).TextColor(pal.textMuted).TextAlign(ui.Center)
