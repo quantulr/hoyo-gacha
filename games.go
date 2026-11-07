@@ -10,6 +10,7 @@ type game struct {
 	art          *ui.Bitmap
 	allTerm      string    // 总抽数的说明，如“全部跃迁”
 	pityTerm     string    // 保底标题，如“跃迁保底”
+	stars        bool      // 等级用星级展示（原神、星穹铁道）；否则用 S/A/B
 	spec         gachaSpec // 等级与保底规则
 	channels     []string  // 导入时用于确认文件属于该游戏
 	body         func(a *app, c *ui.Context, pal *palette, g *game)

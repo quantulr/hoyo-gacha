@@ -107,6 +107,7 @@ func TestStarRailView(t *testing.T) {
 	for _, text := range []string{
 		"崩坏：星穹铁道", "抽卡概览", "全部跃迁", "跃迁保底",
 		"角色活动跃迁", "光锥活动跃迁", "新手跃迁", "最近出金", "保底 0 / 90",
+		"5 星", "4 星",
 	} {
 		if !tt.HasText(text) {
 			t.Errorf("缺少文本 %q，现有 %q", text, tt.Texts())
@@ -116,9 +117,12 @@ func TestStarRailView(t *testing.T) {
 	if err := tt.Click("记录"); err != nil {
 		t.Fatal(err)
 	}
+	if !tt.HasText("仅 5 星") || !tt.HasText("5+4 星") {
+		t.Errorf("缺少星级筛选，现有 %q", tt.Texts())
+	}
 	if !tt.HasText("S1") || tt.HasText("A1") || tt.HasText("B1") ||
 		!tt.HasText("共 1 条 · 最新在前") {
-		t.Errorf("记录页默认应只看 S，现有 %q", tt.Texts())
+		t.Errorf("记录页默认应只看 5 星，现有 %q", tt.Texts())
 	}
 
 	if err := tt.Click("全部"); err != nil {
@@ -129,11 +133,16 @@ func TestStarRailView(t *testing.T) {
 			t.Errorf("全部筛选缺少 %q，现有 %q", text, tt.Texts())
 		}
 	}
+	for _, badge := range []string{"5星", "4星", "3星"} {
+		if _, ok := tt.Find(badge); !ok {
+			t.Errorf("缺少等级徽标 %q，现有 %q", badge, tt.Texts())
+		}
+	}
 
-	if err := tt.Click("S+A"); err != nil {
+	if err := tt.Click("5+4 星"); err != nil {
 		t.Fatal(err)
 	}
 	if tt.HasText("B1") || !tt.HasText("A1") || !tt.HasText("共 2 条 · 最新在前") {
-		t.Errorf("S+A 筛选结果 %q", tt.Texts())
+		t.Errorf("5+4 星筛选结果 %q", tt.Texts())
 	}
 }

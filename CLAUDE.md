@@ -28,8 +28,8 @@ go build -o /tmp/hoyo-gacha-check .  # 仅编译检查；用 -o 指到临时目�
 - `main.go`：`app` 状态、主窗口与所有共享 UI。启动时遍历 `games`，在后台调用各游戏的 `load`，再回到主线程 `apply`。`content` 按 `g.body` 分发页面；顶栏刷新按钮和全窗进度弹框由 `game.refresh` / `game.fetching` 驱动。
 - `settings.go`：Kero 风格的独立设置窗口，含「通用」「关于」两页、手动检查更新和数据目录入口；窗口控件与主窗口共用 `windowControlsFor`。
 - `import.go`：右上角和空状态里的导入按钮，通过 `mygo.Dialog.Open` 选择 `gacha-list-*.json`；校验 UID 与文件所含频道是否属于当前游戏，原子写入数据目录并更新 `config.json` 的 `current`，然后重新 `load`/`apply`。导入结果通过 `a.toast` 在 UI 线程显示。
-- `games.go`：`game` 描述结构与注册表。每个游戏文件提供元数据、`gachaSpec`、`load`/`apply`、页面 `body`、频道颜色，可选 `refresh`/`fetching`/`annotate`。`games` 在 `init()` 中赋值，避免“游戏变量 → load → gameByID → games”的初始化循环。
-- `gacha.go`：共享数据模型与统计。`gachaRecord` 同时解析对象记录和原神紧凑数组；`gachaExport` 对应 `gacha-list-<uid>.json`；`newGachaData` 计算保底、等级和出金历史，并把记录翻成最新在前。`gachaSpecFor` 从游戏注册表取等级与保底规则；`gachaSpec.ranks` 按频道覆盖等级映射。`loadGachaDir` 在没有任何导出文件时返回 `nil, nil`，读入成功后用文件 UID 校正 `config.json` 的 `current`（保留其他键）。歪卡标注由各游戏的 `annotate` 按时间顺序用 `markBannerPull` 写入 `pullRecord.BannerKnown`/`Lost`/`Guaranteed`；`channelStats.countLost` 只汇总小保底（跳过 `Guaranteed`）并标记 `LostTracked`，`channelStats.LostRate` 供「各卡池歪卡率」使用，`gachaData.LostStats` 与 `LostRate` 供总览卡片使用。
+- `games.go`：`game` 描述结构与注册表。每个游戏文件提供元数据、`gachaSpec`、`load`/`apply`、页面 `body`、频道颜色，可选 `refresh`/`fetching`/`annotate`；`game.stars` 决定等级用星级还是 S/A/B 展示。`games` 在 `init()` 中赋值，避免“游戏变量 → load → gameByID → games”的初始化循环。
+- `gacha.go`：共享数据模型与统计。`gachaRecord` 同时解析对象记录和原神紧凑数组；`gachaExport` 对应 `gacha-list-<uid>.json`；`newGachaData` 计算保底、等级和出金历史，并把记录翻成最新在前，同时按原始 `RankType` 累计 `RankCounts` 供星级统计卡片使用。`gachaSpecFor` 从游戏注册表取等级与保底规则；`gachaSpec.ranks` 按频道覆盖等级映射。`loadGachaDir` 在没有任何导出文件时返回 `nil, nil`，读入成功后用文件 UID 校正 `config.json` 的 `current`（保留其他键）。歪卡标注由各游戏的 `annotate` 按时间顺序用 `markBannerPull` 写入 `pullRecord.BannerKnown`/`Lost`/`Guaranteed`；`channelStats.countLost` 只汇总小保底（跳过 `Guaranteed`）并标记 `LostTracked`，`channelStats.LostRate` 供「各卡池歪卡率」使用，`gachaData.LostStats` 与 `LostRate` 供总览卡片使用。
 - `fetch.go`：共享抓取基础设施。API 响应结构、`gachaLatestIDs`/`gachaIDEquals`、时区换算、`loadGachaLocal`、`mergeGachaExport`（按 id 严格并集）、原子写 `saveGachaExport`、`sanitizeURLError`。
 - 每个游戏两份文件：`<game>.go`（描述符与 UI）和 `<game>_fetch.go`（日志/缓存定位、链接解析、分页抓取）。ZZZ、星穹铁道和原神的卡池歪标记分别在 `zzz_banners.go`、`starrail_banners.go`、`genshin_banners.go`，对应的 `assets/*-banners.json` 通过 `go:embed` 内嵌；卡池时间按 UTC+8。原神卡池只覆盖角色/武器活动祈愿，集录祈愿和千星奇域颂愿暂不判定。
 - UI 测试用 `ui.NewTester(a.view, 960, 680)` 配合 `HasText`/`Click`，不需要真实窗口。
@@ -56,7 +56,7 @@ go build -o /tmp/hoyo-gacha-check .  # 仅编译检查；用 -o 指到临时目�
 | 星穹铁道 | 11/12/1/2/21/22 | 5/4/3 | 12/22=80，2=50，其余 90 |
 | 绝区零 | 2/102 角色 / 3/103 音擎 / 1 常驻 / 5 邦布 | 4/3/2 | 3/103/5=80，其余 90 |
 
-等级在 `pullRecord.Tier` 中统一成 0=S、1=A、2=B；规则集中在各游戏的 `gachaSpec`，`hardPity` 缺省 90。千星奇域常驻颂愿没有 5 星，4 星作为最高的 S 级参与保底与出金统计。
+等级在 `pullRecord.Tier` 中统一成 0=最高、1=次高、2=第三档；规则集中在各游戏的 `gachaSpec`，`hardPity` 缺省 90。展示由 `game.stars` 决定：原神/星穹铁道显示 3/4/5 星，记录徽标用原始 `RankType`（千星奇域常驻颂愿为 4/3/2 星），筛选标签按当前频段的 `gachaSpec.rankFor` 生成；绝区零显示 S/A/B。千星奇域常驻颂愿没有 5 星，4 星作为最高档参与保底与出金统计。
 
 ### 新接入一款游戏
 

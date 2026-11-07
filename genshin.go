@@ -10,6 +10,7 @@ var genshinGame = game{
 	art:          gameArt("genshin.png"),
 	allTerm:      "全部祈愿",
 	pityTerm:     "祈愿保底",
+	stars:        true,
 	spec:         genshinSpec,
 	channels:     genshinChannelOrder,
 	body:         (*app).genshinBody,

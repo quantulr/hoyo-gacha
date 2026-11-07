@@ -168,7 +168,7 @@ func TestGenshinView(t *testing.T) {
 	for _, text := range []string{
 		"原神", "抽卡概览", "全部祈愿", "祈愿保底",
 		"角色活动祈愿", "武器活动祈愿", "常驻祈愿", "集录祈愿", "新手祈愿",
-		"最近出金", "保底 0 / 90", "保底 1 / 20",
+		"最近出金", "保底 0 / 90", "保底 1 / 20", "5 星", "4 星",
 	} {
 		if !tt.HasText(text) {
 			t.Errorf("缺少文本 %q，现有 %q", text, tt.Texts())
@@ -178,9 +178,12 @@ func TestGenshinView(t *testing.T) {
 	if err := tt.Click("记录"); err != nil {
 		t.Fatal(err)
 	}
+	if !tt.HasText("仅 5 星") || !tt.HasText("5+4 星") {
+		t.Errorf("缺少星级筛选，现有 %q", tt.Texts())
+	}
 	if !tt.HasText("S1") || tt.HasText("A1") || tt.HasText("B1") ||
 		!tt.HasText("共 1 条 · 最新在前") {
-		t.Errorf("记录页默认应只看 S，现有 %q", tt.Texts())
+		t.Errorf("记录页默认应只看最高档，现有 %q", tt.Texts())
 	}
 
 	if err := tt.Click("全部"); err != nil {
@@ -191,12 +194,17 @@ func TestGenshinView(t *testing.T) {
 			t.Errorf("全部筛选缺少 %q，现有 %q", text, tt.Texts())
 		}
 	}
+	for _, badge := range []string{"5星", "4星", "3星"} {
+		if _, ok := tt.Find(badge); !ok {
+			t.Errorf("缺少等级徽标 %q，现有 %q", badge, tt.Texts())
+		}
+	}
 
-	if err := tt.Click("S+A"); err != nil {
+	if err := tt.Click("5+4 星"); err != nil {
 		t.Fatal(err)
 	}
 	if tt.HasText("B1") || !tt.HasText("A1") || !tt.HasText("共 2 条 · 最新在前") {
-		t.Errorf("S+A 筛选结果 %q", tt.Texts())
+		t.Errorf("5+4 星筛选结果 %q", tt.Texts())
 	}
 }
 
@@ -292,6 +300,11 @@ func TestGenshinUGCView(t *testing.T) {
 	if !tt.HasText("活动A") || !tt.HasText("活动B") || !tt.HasText("共 3 条 · 最新在前") {
 		t.Errorf("全部筛选结果 %q", tt.Texts())
 	}
+	for _, badge := range []string{"5星", "4星", "3星"} {
+		if _, ok := tt.Find(badge); !ok {
+			t.Errorf("缺少等级徽标 %q，现有 %q", badge, tt.Texts())
+		}
+	}
 	if err := tt.Click("千星奇域·常驻颂愿"); err != nil {
 		t.Fatal(err)
 	}
@@ -299,11 +312,19 @@ func TestGenshinUGCView(t *testing.T) {
 		!tt.HasText("共 3 条 · 最新在前") {
 		t.Errorf("常驻颂愿记录 %q", tt.Texts())
 	}
-	if err := tt.Click("仅 S"); err != nil {
+	if !tt.HasText("仅 4 星") || !tt.HasText("4+3 星") {
+		t.Errorf("常驻颂愿缺少星级筛选，现有 %q", tt.Texts())
+	}
+	for _, badge := range []string{"4星", "3星", "2星"} {
+		if _, ok := tt.Find(badge); !ok {
+			t.Errorf("缺少等级徽标 %q，现有 %q", badge, tt.Texts())
+		}
+	}
+	if err := tt.Click("仅 4 星"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("常驻S") || tt.HasText("常驻A") || tt.HasText("常驻B") ||
 		!tt.HasText("共 1 条 · 最新在前") {
-		t.Errorf("常驻颂愿仅 S 筛选结果 %q", tt.Texts())
+		t.Errorf("常驻颂愿仅 4 星筛选结果 %q", tt.Texts())
 	}
 }

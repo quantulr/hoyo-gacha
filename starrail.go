@@ -10,6 +10,7 @@ var starRailGame = game{
 	art:          gameArt("starrail.png"),
 	allTerm:      "全部跃迁",
 	pityTerm:     "跃迁保底",
+	stars:        true,
 	spec:         starRailSpec,
 	channels:     starRailChannelOrder,
 	body:         (*app).starrailBody,

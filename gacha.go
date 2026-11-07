@@ -19,7 +19,7 @@ type gachaRecord struct {
 	ItemID    string `json:"item_id"`
 	ItemType  string `json:"item_type"`
 	Name      string `json:"name"`
-	RankType  string `json:"rank_type"` // S/A/B 对应的值随游戏而定
+	RankType  string `json:"rank_type"` // 等级值随游戏而定：原神/星穹铁道为星级，绝区零为 2/3/4
 	Time      string `json:"time"`      // 本地时间，YYYY-MM-DD HH:MM:SS
 	GachaType string `json:"gacha_type"`
 	Count     string `json:"count,omitempty"`
@@ -111,16 +111,16 @@ type gachaExport struct {
 type pullRecord struct {
 	gachaRecord
 	Pity        int  // 这一抽是距上一个 S 级后的第几抽
-	Tier        int  // 0 = S，1 = A，2 = B
-	Lost        bool // S 级不是当期 UP；常驻、邦布或缺少卡池数据时为 false
+	Tier        int  // 0 = 最高档，1 = 次高，2 = 第三档
+	Lost        bool // 最高档不是当期 UP；常驻、邦布或缺少卡池数据时为 false
 	BannerKnown bool // 有当期卡池数据，Lost 的结果有效
 	Guaranteed  bool // 上一次限定 S 歪后触发的大保底，不计入歪卡率
 }
 
-// 记录页的筛选模式。零值默认只看 S。
+// 记录页的筛选模式。零值默认只看最高档。
 const (
-	pullFilterS   = iota // 仅 S
-	pullFilterSA         // S + A
+	pullFilterS   = iota // 仅最高档
+	pullFilterSA         // 最高档 + 次高档
 	pullFilterAll        // 全部
 )
 
@@ -195,6 +195,7 @@ type sPull struct {
 	ItemType string
 	Channel  string
 	Time     string
+	Rank     string // 原始等级，如原神/星穹铁道的 5、4、3 星
 	Pity     int
 }
 
@@ -222,6 +223,18 @@ func (s gachaSpec) rankFor(typ string) gachaRankSpec {
 	return gachaRankSpec{s: s.sRank, a: s.aRank, b: s.bRank}
 }
 
+// rankAt 返回等级映射中档位的原始值，如原神的 5、4、3。
+func (r gachaRankSpec) rankAt(tier int) string {
+	switch tier {
+	case 0:
+		return r.s
+	case 1:
+		return r.a
+	default:
+		return r.b
+	}
+}
+
 // gachaSpecFor 返回游戏的等级与保底规则。
 func gachaSpecFor(game string) gachaSpec {
 	if g := gameByID(game); g != nil {
@@ -237,6 +250,7 @@ type gachaData struct {
 	TotalPulls int
 	TotalS     int
 	TotalA     int
+	RankCounts map[string]int // 原始等级计数，如原神/星穹铁道的 5、4、3 星
 	Channels   []channelStats
 	SRecords   []sPull // 按时间从新到旧
 }
@@ -417,7 +431,7 @@ func newGachaData(exp *gachaExport, game string) *gachaData {
 	}
 
 	spec := gachaSpecFor(game)
-	d := &gachaData{UID: exp.UID}
+	d := &gachaData{UID: exp.UID, RankCounts: map[string]int{}}
 	for _, typ := range order {
 		recs := groups[typ]
 		if len(recs) == 0 {
@@ -446,6 +460,9 @@ func newGachaData(exp *gachaExport, game string) *gachaData {
 				tier = 2
 			}
 			ch.Records = append(ch.Records, pullRecord{gachaRecord: r, Pity: pity, Tier: tier})
+			if r.RankType != "" {
+				d.RankCounts[r.RankType]++
+			}
 			if r.Time > d.LastTime {
 				d.LastTime = r.Time
 			}
@@ -459,6 +476,7 @@ func newGachaData(exp *gachaExport, game string) *gachaData {
 					ItemType: r.ItemType,
 					Channel:  ch.Name,
 					Time:     r.Time,
+					Rank:     r.RankType,
 					Pity:     pity,
 				})
 				pity = 0

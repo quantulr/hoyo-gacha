@@ -396,9 +396,15 @@ func viewSwitch(c *ui.Context, pal *palette, sel *int) {
 	segmented(c, pal, sel, "视图", []string{"概览", "记录"})
 }
 
-// rankFilter 是记录页的等级筛选。
-func rankFilter(c *ui.Context, pal *palette, sel *int) {
-	segmented(c, pal, sel, "筛选", []string{"仅 S", "S+A", "全部"})
+// rankFilter 是记录页的等级筛选。原神/星穹铁道用当前频段的星级，
+// 绝区零用 S/A/B。
+func rankFilter(c *ui.Context, pal *palette, sel *int, g *game, ch *channelStats) {
+	labels := []string{"仅 S", "S+A", "全部"}
+	if g.stars {
+		rank := g.spec.rankFor(ch.Type)
+		labels = []string{"仅 " + rank.s + " 星", rank.s + "+" + rank.a + " 星", "全部"}
+	}
+	segmented(c, pal, sel, "筛选", labels)
 }
 
 func (a *app) messageBody(c *ui.Context, pal *palette, g *game, title, detail string, action func()) {
@@ -458,7 +464,8 @@ func (a *app) gachaOverview(c *ui.Context, pal *palette, g *game, d *gachaData) 
 			})
 		}
 		ui.Column(c).Gap(8).Children(func() {
-			sectionHeading(c, pal, g.pityTerm, "自上次 S 级起")
+			// 各频段的最高等级不同（千星奇域常驻颂愿没有 5 星），这里不写具体星级。
+			sectionHeading(c, pal, g.pityTerm, "自上次出金起")
 			for _, ch := range d.Channels {
 				channelRow(c, pal, g, ch)
 			}
@@ -473,7 +480,7 @@ func (a *app) gachaOverview(c *ui.Context, pal *palette, g *game, d *gachaData) 
 					if i >= recentSCount {
 						break
 					}
-					sPullRow(c, pal, s)
+					sPullRow(c, pal, g, s)
 				}
 			})
 		})
@@ -491,14 +498,14 @@ func (a *app) gachaRecords(c *ui.Context, pal *palette, g *game, d *gachaData, v
 		sectionHeading(c, pal, "卡池记录", fmt.Sprintf("共 %s 条 · 最新在前", formatInt(len(recs))))
 		ui.Row(c).AlignItems(ui.Start).Gap(12).Children(func() {
 			a.channelChips(c, pal, g, d, ch, view).Grow(1)
-			rankFilter(c, pal, &view.filter)
+			rankFilter(c, pal, &view.filter, g, ch)
 		})
 		panel := ui.Column(c).Grow(1).MinHeight(0).Background(pal.chip).Radius(12).
 			Padding(4, 14).Clip()
 		panel.Children(func() {
 			key := fmt.Sprintf("gacha-records-%s-%s-%d", g.id, ch.Type, view.filter)
 			list := ui.List(c.Key(key), nil, len(recs), func(i int) {
-				recordRow(c, pal, recs[i])
+				recordRow(c, pal, g, recs[i])
 			}).Grow(1).MinHeight(0).Label("抽卡记录")
 			list.Children(func() {
 				if len(recs) == 0 {
@@ -559,12 +566,12 @@ func (a *app) channelChips(c *ui.Context, pal *palette, g *game, d *gachaData, s
 	})
 }
 
-func recordRow(c *ui.Context, pal *palette, r pullRecord) {
+func recordRow(c *ui.Context, pal *palette, g *game, r pullRecord) {
 	fg, bg := rankColors(r.Tier, pal)
 	ui.Row(c).Height(38).Shrink(0).Gap(10).AlignItems(ui.Center).
 		BorderWidth(0, 0, 1, 0).BorderColor(pal.divider).Children(func() {
 		ui.Box(c).Size(20, 20).Shrink(0).Radius(6).Background(bg).Center().Children(func() {
-			ui.Text(c, rankLabel(r.Tier)).FontSize(10.5).FontWeight(700).TextColor(fg)
+			ui.Text(c, g.rankBadge(r.RankType, r.Tier)).FontSize(10.5).FontWeight(700).TextColor(fg)
 		})
 		ui.Text(c, r.Name).FontSize(13.5).FontWeight(500).TextColor(pal.text).
 			SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
@@ -609,6 +616,34 @@ func rankLabel(tier int) string {
 	}
 }
 
+// rankName 返回等级在统计中的称呼，如原神/星穹铁道的「5 星」或绝区零的「S 级」。
+func (g *game) rankName(tier int) string {
+	if g.stars {
+		return g.spec.rankFor("").rankAt(tier) + " 星"
+	}
+	return rankLabel(tier) + " 级"
+}
+
+// rankSymbol 返回频段等级在紧凑文本中的称呼，星级按频段规则换算。
+func (g *game) rankSymbol(typ string, tier int) string {
+	if g.stars {
+		return g.spec.rankFor(typ).rankAt(tier) + " 星"
+	}
+	return rankLabel(tier)
+}
+
+// rankBadge 返回记录行里的等级徽标。原神/星穹铁道用记录的原始星级，
+// 这样千星奇域常驻颂愿的 4 星也能正确显示。
+func (g *game) rankBadge(rankType string, tier int) string {
+	if g.stars {
+		if rankType != "" {
+			return rankType + "星"
+		}
+		return fmt.Sprintf("%d星", 5-tier)
+	}
+	return rankLabel(tier)
+}
+
 func sectionHeading(c *ui.Context, pal *palette, title, note string) {
 	ui.Row(c).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, title).FontSize(14).FontWeight(600).TextColor(pal.text).SingleLine()
@@ -631,6 +666,22 @@ func statCards(c *ui.Context, pal *palette, g *game, d *gachaData) {
 			lostColor = pal.danger
 		}
 	}
+	sCount, aCount := d.TotalS, d.TotalA
+	sRate, aRate := d.SRate(), d.ARate()
+	average := d.Average()
+	if g.stars {
+		// 原神/星穹铁道按真实星级统计；千星奇域常驻颂愿的 4 星也归入 4 星。
+		sCount = d.RankCounts[g.spec.sRank]
+		aCount = d.RankCounts[g.spec.aRank]
+		if d.TotalPulls > 0 {
+			sRate = float64(sCount) / float64(d.TotalPulls)
+			aRate = float64(aCount) / float64(d.TotalPulls)
+		}
+		average = 0
+		if sCount > 0 {
+			average = float64(d.TotalPulls) / float64(sCount)
+		}
+	}
 	cards := []struct {
 		label string
 		value string
@@ -638,9 +689,9 @@ func statCards(c *ui.Context, pal *palette, g *game, d *gachaData) {
 		color ui.Color
 	}{
 		{"总抽数", formatInt(d.TotalPulls), g.allTerm, pal.text},
-		{"S 级", formatInt(d.TotalS), fmt.Sprintf("出货率 %.2f%%", d.SRate()*100), pal.attention},
-		{"A 级", formatInt(d.TotalA), fmt.Sprintf("出货率 %.2f%%", d.ARate()*100), pal.text},
-		{"平均出金", averageText(d.Average()), "抽 / S 级", pal.text},
+		{g.rankName(0), formatInt(sCount), fmt.Sprintf("出货率 %.2f%%", sRate*100), pal.attention},
+		{g.rankName(1), formatInt(aCount), fmt.Sprintf("出货率 %.2f%%", aRate*100), pal.text},
+		{"平均出金", averageText(average), "抽 / " + g.rankName(0), pal.text},
 		{"歪卡率", lostValue, lostNote, lostColor},
 	}
 	cols := 2
@@ -675,7 +726,7 @@ func channelRow(c *ui.Context, pal *palette, g *game, ch channelStats) {
 		ui.Box(c).Size(8, 8).Shrink(0).Radius(4).Background(color)
 		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
 			ui.Text(c, ch.Name).FontSize(13).FontWeight(600).TextColor(pal.text).SingleLine()
-			ui.Textf(c, "%s 抽 · S %d · 平均 %s", formatInt(ch.Pulls), ch.S, averageText(ch.Average)).
+			ui.Textf(c, "%s 抽 · %s %d · 平均 %s", formatInt(ch.Pulls), g.rankSymbol(ch.Type, 0), ch.S, averageText(ch.Average)).
 				FontSize(11.5).TextColor(pal.textFaint).FontFeatures("tnum").
 				SingleLine().Ellipsis("…")
 		})
@@ -729,7 +780,7 @@ func lostRateRow(c *ui.Context, pal *palette, g *game, ch channelStats) {
 	})
 }
 
-func sPullRow(c *ui.Context, pal *palette, s sPull) {
+func sPullRow(c *ui.Context, pal *palette, g *game, s sPull) {
 	meta := s.ItemType
 	if s.Channel != "" {
 		if meta != "" {
@@ -740,7 +791,7 @@ func sPullRow(c *ui.Context, pal *palette, s sPull) {
 	ui.Row(c).Height(38).Shrink(0).Gap(10).AlignItems(ui.Center).Children(func() {
 		ui.Box(c).Size(20, 20).Shrink(0).Radius(6).Background(pal.attention.Alpha(0.14)).
 			Center().Children(func() {
-			ui.Text(c, "S").FontSize(10.5).FontWeight(700).TextColor(pal.attention)
+			ui.Text(c, g.rankBadge(s.Rank, 0)).FontSize(10.5).FontWeight(700).TextColor(pal.attention)
 		})
 		ui.Text(c, s.Name).FontSize(13.5).FontWeight(500).TextColor(pal.text).
 			SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
