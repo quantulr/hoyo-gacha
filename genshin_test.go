@@ -146,10 +146,13 @@ func TestGenshinEmptyState(t *testing.T) {
 	a.selected = "genshin"
 	a.genshinLoaded = true
 	tt := ui.NewTester(a.view, 960, 680)
-	for _, text := range []string{"还没有抽卡记录", "导入 gacha-list-*.json", "刷新"} {
+	for _, text := range []string{"还没有抽卡记录", "导入 gacha-list-*.json", "导入记录", "刷新"} {
 		if !tt.HasText(text) {
 			t.Errorf("缺少文本 %q，现有 %q", text, tt.Texts())
 		}
+	}
+	if _, ok := tt.Find("导入"); !ok {
+		t.Errorf("标题栏缺少导入按钮，文本 %q", tt.Texts())
 	}
 	if tt.HasText("无法读取") {
 		t.Errorf("没有文件时不应显示读取失败，现有 %q", tt.Texts())

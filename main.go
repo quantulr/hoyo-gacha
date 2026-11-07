@@ -30,6 +30,9 @@ type app struct {
 	settingsWin  *mygo.Window
 	settingsPage string // 设置窗口当前页：general 或 about
 
+	importing bool   // 正在选择或写入导入文件
+	toast     string // 待显示的导入结果，显示后清空
+
 	genshin       *gachaData
 	genshinErr    error
 	genshinLoaded bool
@@ -88,6 +91,10 @@ func (a *app) view(c *ui.Context) {
 	if a.starrailToast != "" {
 		c.Toast(a.starrailToast)
 		a.starrailToast = ""
+	}
+	if a.toast != "" {
+		c.Toast(a.toast)
+		a.toast = ""
 	}
 	a.shortcuts(c)
 
@@ -200,6 +207,9 @@ func (a *app) content(c *ui.Context, pal *palette, g *game) {
 				ui.Text(c, "· "+g.tagline).FontSize(12.5).TextColor(pal.textFaint).
 					SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
 				ui.Spacer(c)
+				if g.load != nil && g.apply != nil {
+					a.importButton(c, pal, g)
+				}
 				if g.refresh != nil && g.fetching != nil {
 					_, fetching := g.fetching(a)
 					a.refreshButton(c, pal, g.id+"-refresh", fetching, func() { g.refresh(a) })
@@ -240,9 +250,9 @@ func (a *app) gachaBody(c *ui.Context, pal *palette, g *game, d *gachaData, err 
 			ui.Textf(c, "正在读取%s抽卡记录…", g.name).FontSize(13).TextColor(pal.textMuted)
 		})
 	case err != nil:
-		a.messageBody(c, pal, g, "无法读取"+g.name+"抽卡数据", err.Error())
+		a.messageBody(c, pal, g, "无法读取"+g.name+"抽卡数据", err.Error(), nil)
 	case d == nil || d.TotalPulls == 0:
-		a.messageBody(c, pal, g, "还没有抽卡记录", emptyTip)
+		a.messageBody(c, pal, g, "还没有抽卡记录", emptyTip, func() { a.importGacha(g) })
 	default:
 		ui.Column(c).Grow(1).MinHeight(0).Children(func() {
 			ui.Row(c).Shrink(0).Padding(14, 28, 0, 28).Children(func() {
@@ -257,18 +267,18 @@ func (a *app) gachaBody(c *ui.Context, pal *palette, g *game, d *gachaData, err 
 	}
 }
 
-// refreshButton 重新从游戏日志抓取抽卡记录；抓取期间禁用。
-func (a *app) refreshButton(c *ui.Context, pal *palette, key string, fetching bool, refresh func()) {
-	label := "刷新"
-	if fetching {
-		label = "刷新中…"
+// headerButton 是标题栏里的安静按钮。
+func (a *app) headerButton(c *ui.Context, pal *palette, key, label, busyLabel string, busy bool, action func()) {
+	text := label
+	if busy {
+		text = busyLabel
 	}
 	b := ui.ButtonBase(c.Key(key)).Height(24).Shrink(0).Padding(0, 10).
-		Radius(6).AlignItems(ui.Center).Label(label).Disabled(fetching)
+		Radius(6).AlignItems(ui.Center).Label(text).Disabled(busy)
 	bg := pal.chip
 	fg := pal.textMuted
 	switch {
-	case fetching:
+	case busy:
 		fg = pal.textFaint
 	case b.Hovered():
 		bg = pal.rowHover
@@ -276,11 +286,23 @@ func (a *app) refreshButton(c *ui.Context, pal *palette, key string, fetching bo
 	}
 	b.Background(bg)
 	b.Children(func() {
-		ui.Text(c, label).FontSize(12).FontWeight(500).TextColor(fg).SingleLine()
+		ui.Text(c, text).FontSize(12).FontWeight(500).TextColor(fg).SingleLine()
 	})
 	if b.Clicked() {
-		refresh()
+		action()
 	}
+}
+
+// refreshButton 重新从游戏日志抓取抽卡记录；抓取期间禁用。
+func (a *app) refreshButton(c *ui.Context, pal *palette, key string, fetching bool, refresh func()) {
+	a.headerButton(c, pal, key, "刷新", "刷新中…", fetching, refresh)
+}
+
+// importButton 从 gacha-list-*.json 导入当前游戏的抽卡记录。
+func (a *app) importButton(c *ui.Context, pal *palette, g *game) {
+	a.headerButton(c, pal, g.id+"-import", "导入", "导入中…", a.importing, func() {
+		a.importGacha(g)
+	})
 }
 
 // statusRow 显示刷新进度或结果。
@@ -373,13 +395,38 @@ func rankFilter(c *ui.Context, pal *palette, sel *int) {
 	segmented(c, pal, sel, "筛选", []string{"仅 S", "S+A", "全部"})
 }
 
-func (a *app) messageBody(c *ui.Context, pal *palette, g *game, title, detail string) {
+func (a *app) messageBody(c *ui.Context, pal *palette, g *game, title, detail string, action func()) {
 	ui.Column(c).Grow(1).MinHeight(0).Center().Padding(24).Children(func() {
 		gameImage(c, g, 56, pal).Margin(0, 0, 18, 0).
 			Shadow(0, 2, 8, 0, ui.RGBA(0, 0, 0, 0.12))
 		ui.Text(c, title).FontSize(19).FontWeight(650).TextColor(pal.text)
 		ui.Text(c, detail).FontSize(13).TextColor(pal.textMuted).
 			MaxWidth(420).TextAlign(ui.Center).LineHeight(1.45).Margin(8, 0, 0, 0)
+		if action != nil {
+			importLabel := "导入记录"
+			if a.importing {
+				importLabel = "导入中…"
+			}
+			b := ui.ButtonBase(c.Key("import-"+g.id)).Height(30).Shrink(0).Padding(0, 16).
+				Radius(7).Center().AlignItems(ui.Center).Label(importLabel).
+				Disabled(a.importing).Margin(18, 0, 0, 0)
+			bg := pal.accent
+			switch {
+			case b.Pressed():
+				bg = bg.Mix(ui.Hex("#000000"), 0.08)
+			case b.Hovered():
+				bg = bg.Mix(ui.Hex("#ffffff"), 0.08)
+			}
+			b.Background(bg)
+			raised(b, pal)
+			b.Children(func() {
+				ui.Text(c, importLabel).FontSize(13).FontWeight(500).
+					TextColor(ui.Hex("#ffffff")).SingleLine()
+			})
+			if b.Clicked() {
+				action()
+			}
+		}
 	})
 }
 

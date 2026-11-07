@@ -11,6 +11,7 @@ var genshinGame = game{
 	allTerm:      "全部祈愿",
 	pityTerm:     "祈愿保底",
 	spec:         genshinSpec,
+	channels:     genshinChannelOrder,
 	body:         (*app).genshinBody,
 	channelColor: genshinChannelColor,
 	refresh:      (*app).refreshGenshin,

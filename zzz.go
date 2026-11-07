@@ -11,6 +11,7 @@ var zzzGame = game{
 	allTerm:      "全部频段",
 	pityTerm:     "频段保底",
 	spec:         zzzSpec,
+	channels:     zzzChannelOrder,
 	body:         (*app).zzzBody,
 	channelColor: zzzChannelColor,
 	refresh:      (*app).refreshZZZ,

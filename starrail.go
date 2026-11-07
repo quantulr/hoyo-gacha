@@ -11,6 +11,7 @@ var starRailGame = game{
 	allTerm:      "全部跃迁",
 	pityTerm:     "跃迁保底",
 	spec:         starRailSpec,
+	channels:     starRailChannelOrder,
 	body:         (*app).starrailBody,
 	channelColor: starRailChannelColor,
 	refresh:      (*app).refreshStarRail,

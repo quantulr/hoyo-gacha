@@ -16,6 +16,7 @@ hoyo-gacha 是一款用 Go 和 [MyGo](https://github.com/egoist/mygo) 编写的�
 - **抽卡概览**：总抽数、S/A 数量与出货率、平均出金、各卡池保底进度，以及最近 12 次出金。
 - **完整记录**：按卡池频段查看，最新在前；支持“仅 S / S+A / 全部”筛选，默认只看 S。
 - **自动刷新**：从本机日志/缓存中提取临时 authkey，分页请求官方接口，并按记录 id 与本地数据合并。
+- **一键导入**：点右上角「导入」选择 `gacha-list-<uid>.json`，应用会写入数据目录并把该账号设为当前账号；空状态也可以直接导入。
 - **歪卡标记**：内置历史卡池数据；限定卡池的 S 级如果不是当期 UP，会在记录里显示“歪”。
 - **自动更新**：启动后检查 GitHub Release 上的签名更新，下载后下次启动生效；发布与签名校验由 GitHub Actions 完成。
 - **设置窗口**：侧边栏底部打开独立的设置窗口，可手动检查更新、打开数据目录，并在「关于」中查看开源项目致谢。
@@ -45,7 +46,9 @@ hoyo-gacha 是一款用 Go 和 [MyGo](https://github.com/egoist/mygo) 编写的�
 
 ### 手动导入
 
-如果已有 `gacha-list-<uid>.json`（例如由 genshin-wish-export、star-rail-warp-export 等工具生成），也可以直接放入对应游戏的数据目录：
+如果已有 `gacha-list-<uid>.json`（例如由 genshin-wish-export、star-rail-warp-export 等工具生成），选择对应游戏后点右上角「导入」并选中文件即可。应用会把文件写入该游戏的数据目录，并将 `config.json` 的 `current` 指向文件中的 UID；同 UID 的旧文件会被覆盖。
+
+也可以手动放入对应游戏的数据目录后重新启动：
 
 | 游戏 | 生产版目录 |
 | --- | --- |
@@ -53,7 +56,7 @@ hoyo-gacha 是一款用 Go 和 [MyGo](https://github.com/egoist/mygo) 编写的�
 | 崩坏：星穹铁道 | `%APPDATA%\hoyo-gacha\data\starrail\` |
 | 绝区零 | `%APPDATA%\hoyo-gacha\data\zzz\` |
 
-开发版（`go tool mygo dev`）把路径中的 `hoyo-gacha` 换成 `hoyo-gacha Dev`。放入文件后重新启动应用；应用会读取文件中的 UID，并写入该目录 `config.json` 的 `current`。
+开发版（`go tool mygo dev`）把路径中的 `hoyo-gacha` 换成 `hoyo-gacha Dev`。应用会读取文件中的 UID，并写入该目录 `config.json` 的 `current`。
 
 如果数据目录里还没有 `gacha-list-*.json`，应用会提示导入文件，或先在游戏内打开记录页后点「刷新」获取。
 

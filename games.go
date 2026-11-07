@@ -11,6 +11,7 @@ type game struct {
 	allTerm      string    // 总抽数的说明，如“全部跃迁”
 	pityTerm     string    // 保底标题，如“跃迁保底”
 	spec         gachaSpec // 等级与保底规则
+	channels     []string  // 导入时用于确认文件属于该游戏
 	body         func(a *app, c *ui.Context, pal *palette, g *game)
 	channelColor func(typ string, pal *palette) ui.Color
 	refresh      func(a *app)                          // 不支持自动获取时为空
