@@ -567,11 +567,13 @@ func recordRow(c *ui.Context, pal *palette, g *game, r pullRecord) {
 		})
 		ui.Text(c, r.Name).FontSize(13.5).FontWeight(500).TextColor(pal.text).
 			SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
-		if r.Tier == 0 && r.Lost {
-			ui.Box(c).Height(16).Shrink(0).Padding(0, 5).Radius(4).
-				Background(pal.danger.Alpha(0.12)).Center().Children(func() {
-				ui.Text(c, "歪").FontSize(10).FontWeight(650).TextColor(pal.danger).SingleLine()
-			})
+		if r.Tier == 0 {
+			if r.Lost {
+				recordTag(c, "歪", pal.danger)
+			}
+			if r.Guaranteed {
+				recordTag(c, "大保底", pal.accent)
+			}
 		}
 		ui.Text(c, r.ItemType).FontSize(11.5).TextColor(pal.textFaint).SingleLine().Shrink(0)
 		ui.Spacer(c)
@@ -579,6 +581,14 @@ func recordRow(c *ui.Context, pal *palette, g *game, r pullRecord) {
 			FontFeatures("tnum").Width(58).TextAlign(ui.End)
 		ui.Text(c, formatDateTime(r.Time)).FontSize(11.5).TextColor(pal.textFaint).
 			FontFeatures("tnum").SingleLine().Shrink(0)
+	})
+}
+
+// recordTag 是记录名后的状态标记，如「歪」「大保底」。
+func recordTag(c *ui.Context, text string, color ui.Color) {
+	ui.Box(c).Height(16).Shrink(0).Padding(0, 5).Radius(4).
+		Background(color.Alpha(0.12)).Center().Children(func() {
+		ui.Text(c, text).FontSize(10).FontWeight(650).TextColor(color).SingleLine()
 	})
 }
 
