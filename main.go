@@ -261,7 +261,7 @@ func (a *app) gachaBody(c *ui.Context, pal *palette, g *game, d *gachaData, err 
 		a.messageBody(c, pal, g, "还没有抽卡记录", emptyTip, func() { a.importGacha(g) })
 	default:
 		ui.Column(c).Grow(1).MinHeight(0).Children(func() {
-			ui.Row(c).Shrink(0).Padding(14, 28, 0, 28).Children(func() {
+			ui.Row(c).Shrink(0).Padding(14, 28, 8, 28).Children(func() {
 				viewSwitch(c, pal, &view.page)
 			})
 			if view.page == 1 {
