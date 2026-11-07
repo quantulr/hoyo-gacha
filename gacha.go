@@ -3,10 +3,12 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/egoist/mygo"
 )
@@ -232,8 +234,12 @@ func loadGameData(game string) (*gachaData, error) {
 }
 
 // loadGachaDir 从 dir 读取 config.json 指向的抽卡文件。
+// 还没有任何 gacha-list-*.json 时返回 nil, nil，让界面提示导入或获取。
 func loadGachaDir(dir, game string) (*gachaData, error) {
 	path, err := gachaFilePath(dir)
+	if errors.Is(err, errNoGachaFile) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -241,15 +247,36 @@ func loadGachaDir(dir, game string) (*gachaData, error) {
 	if err != nil {
 		return nil, err
 	}
-	d, err := parseGacha(data, game)
+	exp, err := parseGachaExport(data)
 	if err != nil {
 		return nil, err
+	}
+	if exp.UID == "" {
+		exp.UID = gachaUIDFromPath(path)
+	}
+	d := newGachaData(exp, game)
+	// 手动导入的文件可能还没有 config.json；记下这个账号，下次启动继续读取。
+	// 配置写入失败不影响已经读入的记录。
+	if exp.UID != "" {
+		_ = saveGachaCurrentIfChanged(dir, exp.UID)
 	}
 	// 游戏的补充数据（如卡池）读取失败不影响抽卡记录本身。
 	if g := gameByID(game); g != nil && g.annotate != nil {
 		g.annotate(d)
 	}
 	return d, nil
+}
+
+// errNoGachaFile 表示目录里还没有任何导出的抽卡文件。
+var errNoGachaFile = errors.New("没有 gacha-list-*.json")
+
+// gachaUIDFromPath 从 gacha-list-<uid>.json 文件名中取出 UID。
+func gachaUIDFromPath(path string) string {
+	name := filepath.Base(path)
+	if !strings.HasPrefix(name, "gacha-list-") || !strings.HasSuffix(name, ".json") {
+		return ""
+	}
+	return strings.TrimSuffix(strings.TrimPrefix(name, "gacha-list-"), ".json")
 }
 
 // gachaFilePath 找到要读取的抽卡文件：config.json 的 current 账号，
@@ -271,7 +298,7 @@ func gachaFilePath(dir string) (string, error) {
 		return "", err
 	}
 	if len(matches) == 0 {
-		return "", fmt.Errorf("在 %s 中没有找到 gacha-list-*.json", dir)
+		return "", errNoGachaFile
 	}
 	sort.Slice(matches, func(i, j int) bool {
 		si, errI := os.Stat(matches[i])
@@ -286,11 +313,19 @@ func gachaFilePath(dir string) (string, error) {
 
 // parseGacha 解析抽卡导出文件并汇总统计。
 func parseGacha(data []byte, game string) (*gachaData, error) {
+	exp, err := parseGachaExport(data)
+	if err != nil {
+		return nil, err
+	}
+	return newGachaData(exp, game), nil
+}
+
+func parseGachaExport(data []byte) (*gachaExport, error) {
 	var exp gachaExport
 	if err := json.Unmarshal(data, &exp); err != nil {
 		return nil, err
 	}
-	return newGachaData(&exp, game), nil
+	return &exp, nil
 }
 
 // newGachaData 按频段汇总记录，并算出保底与出金历史。

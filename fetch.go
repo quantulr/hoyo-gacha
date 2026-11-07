@@ -274,6 +274,20 @@ func saveGachaExport(dir string, exp *gachaExport) error {
 	return saveGachaCurrent(dir, exp.UID)
 }
 
+// saveGachaCurrentIfChanged 在 current 还不是 uid 时写入 config.json，
+// 避免每次启动都重写没有变化的配置。
+func saveGachaCurrentIfChanged(dir, uid string) error {
+	var cfg struct {
+		Current string `json:"current"`
+	}
+	if data, err := os.ReadFile(filepath.Join(dir, "config.json")); err == nil {
+		if json.Unmarshal(data, &cfg) == nil && cfg.Current == uid {
+			return nil
+		}
+	}
+	return saveGachaCurrent(dir, uid)
+}
+
 // saveGachaCurrent 更新 config.json 的当前账号，保留其他配置项。
 func saveGachaCurrent(dir, uid string) error {
 	path := filepath.Join(dir, "config.json")

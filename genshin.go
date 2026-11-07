@@ -48,7 +48,7 @@ func (a *app) genshinBody(c *ui.Context, pal *palette, g *game) {
 		a.statusRow(c, pal, a.genshinStatus)
 	}
 	a.gachaBody(c, pal, g, a.genshin, a.genshinErr, a.genshinLoaded, &a.genshinView,
-		"先在游戏内打开「祈愿记录」或「颂愿」页，再点右上角「刷新」即可读取最新记录。")
+		"导入 gacha-list-*.json 文件，或先在游戏内打开「祈愿记录」或「颂愿」页，再点右上角「刷新」获取。")
 }
 
 func (a *app) genshinFetchState() (string, bool) {

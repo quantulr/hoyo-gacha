@@ -58,7 +58,7 @@ func (a *app) zzzBody(c *ui.Context, pal *palette, g *game) {
 		a.statusRow(c, pal, a.zzzStatus)
 	}
 	a.gachaBody(c, pal, g, a.zzz, a.zzzErr, a.zzzLoaded, &a.zzzView,
-		"先在游戏内打开「调频记录」页，再点右上角「刷新」即可读取最新记录。")
+		"导入 gacha-list-*.json 文件，或先在游戏内打开「调频记录」页，再点右上角「刷新」获取。")
 }
 
 func (a *app) zzzFetchState() (string, bool) {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -97,6 +98,61 @@ func TestLoadGenshinDir(t *testing.T) {
 	}
 	if d.UID != "202" || d.TotalPulls != 7 || len(d.Channels) != 5 {
 		t.Errorf("读入 %+v", d)
+	}
+}
+
+// 没有导出文件时返回空数据，界面应提示导入或获取，而不是读取失败。
+func TestLoadGenshinDirMissing(t *testing.T) {
+	d, err := loadGachaDir(t.TempDir(), "genshin")
+	if err != nil || d != nil {
+		t.Fatalf("空目录返回 %+v, %v", d, err)
+	}
+}
+
+// 手动导入 gacha-list-*.json 后，把文件里的 UID 写成当前账号。
+func TestLoadGenshinDirImportsCurrent(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{"proxyPort":8325}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "gacha-list-202.json"), []byte(genshinFixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	d, err := loadGachaDir(dir, "genshin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.UID != "202" {
+		t.Fatalf("读入 UID %q", d.UID)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg map[string]any
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg["current"] != "202" {
+		t.Errorf("config current = %v", cfg["current"])
+	}
+	if cfg["proxyPort"] != float64(8325) {
+		t.Errorf("config 其他字段被覆盖：%v", cfg)
+	}
+}
+
+func TestGenshinEmptyState(t *testing.T) {
+	a := newApp()
+	a.selected = "genshin"
+	a.genshinLoaded = true
+	tt := ui.NewTester(a.view, 960, 680)
+	for _, text := range []string{"还没有抽卡记录", "导入 gacha-list-*.json", "刷新"} {
+		if !tt.HasText(text) {
+			t.Errorf("缺少文本 %q，现有 %q", text, tt.Texts())
+		}
+	}
+	if tt.HasText("无法读取") {
+		t.Errorf("没有文件时不应显示读取失败，现有 %q", tt.Texts())
 	}
 }
 

@@ -93,8 +93,8 @@ func TestLoadZZZDir(t *testing.T) {
 	if d.UID != "100" || d.TotalPulls != 5 {
 		t.Errorf("读入 %+v", d)
 	}
-	if _, err := loadZZZDir(t.TempDir()); err == nil {
-		t.Error("空目录没有报错")
+	if d, err := loadZZZDir(t.TempDir()); err != nil || d != nil {
+		t.Errorf("空目录返回 %+v, %v", d, err)
 	}
 }
 
