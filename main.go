@@ -213,7 +213,8 @@ func (a *app) content(c *ui.Context, pal *palette, g *game) {
 				ui.Text(c, "· "+g.tagline).FontSize(12.5).TextColor(pal.textFaint).
 					SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
 				ui.Spacer(c)
-				if g.load != nil && g.apply != nil {
+				// 没有记录时页面中央已有导入按钮，标题栏不再重复。
+				if g.load != nil && g.apply != nil && (g.noRecords == nil || !g.noRecords(a)) {
 					a.importButton(c, pal, g)
 				}
 				if g.refresh != nil && g.fetching != nil {

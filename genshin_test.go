@@ -151,8 +151,8 @@ func TestGenshinEmptyState(t *testing.T) {
 			t.Errorf("缺少文本 %q，现有 %q", text, tt.Texts())
 		}
 	}
-	if _, ok := tt.Find("导入"); !ok {
-		t.Errorf("标题栏缺少导入按钮，文本 %q", tt.Texts())
+	if _, ok := tt.Find("导入"); ok {
+		t.Errorf("空状态不应在标题栏重复显示导入按钮，文本 %q", tt.Texts())
 	}
 	if tt.HasText("无法读取") {
 		t.Errorf("没有文件时不应显示读取失败，现有 %q", tt.Texts())
@@ -173,6 +173,9 @@ func TestGenshinView(t *testing.T) {
 		if !tt.HasText(text) {
 			t.Errorf("缺少文本 %q，现有 %q", text, tt.Texts())
 		}
+	}
+	if _, ok := tt.Find("导入"); !ok {
+		t.Errorf("有记录时标题栏应保留导入按钮，文本 %q", tt.Texts())
 	}
 
 	if err := tt.Click("记录"); err != nil {

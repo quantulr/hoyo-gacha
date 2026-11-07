@@ -19,6 +19,7 @@ var genshinGame = game{
 	fetching:     (*app).genshinFetchState,
 	load:         loadGenshinData,
 	apply:        (*app).applyGenshinData,
+	noRecords:    (*app).genshinNoRecords,
 	annotate:     annotateGenshinLoaded,
 }
 
@@ -42,6 +43,11 @@ func loadGenshinData() (*gachaData, error) {
 
 func (a *app) applyGenshinData(d *gachaData, err error) {
 	a.genshin, a.genshinErr, a.genshinLoaded = d, err, true
+}
+
+// genshinNoRecords 表示已读取但没有记录，页面中央会提供导入按钮。
+func (a *app) genshinNoRecords() bool {
+	return a.genshinLoaded && a.genshinErr == nil && (a.genshin == nil || a.genshin.TotalPulls == 0)
 }
 
 // genshinBody 按数据状态展示原神的抽卡概览。

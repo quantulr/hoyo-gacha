@@ -18,6 +18,7 @@ var zzzGame = game{
 	fetching:     (*app).zzzFetchState,
 	load:         loadZZZData,
 	apply:        (*app).applyZZZData,
+	noRecords:    (*app).zzzNoRecords,
 	annotate:     annotateZZZLoaded,
 }
 
@@ -51,6 +52,11 @@ func newZZZData(exp *gachaExport) *gachaData {
 
 func (a *app) applyZZZData(d *gachaData, err error) {
 	a.zzz, a.zzzErr, a.zzzLoaded = d, err, true
+}
+
+// zzzNoRecords 表示已读取但没有记录，页面中央会提供导入按钮。
+func (a *app) zzzNoRecords() bool {
+	return a.zzzLoaded && a.zzzErr == nil && (a.zzz == nil || a.zzz.TotalPulls == 0)
 }
 
 // zzzBody 按数据状态展示绝区零的抽卡概览。

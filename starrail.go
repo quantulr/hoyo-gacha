@@ -19,6 +19,7 @@ var starRailGame = game{
 	fetching:     (*app).starRailFetchState,
 	load:         loadStarRailData,
 	apply:        (*app).applyStarRailData,
+	noRecords:    (*app).starRailNoRecords,
 	annotate:     annotateStarRailLoaded,
 }
 
@@ -42,6 +43,11 @@ func parseStarRail(data []byte) (*gachaData, error) {
 
 func (a *app) applyStarRailData(d *gachaData, err error) {
 	a.starrail, a.starrailErr, a.starrailLoaded = d, err, true
+}
+
+// starRailNoRecords 表示已读取但没有记录，页面中央会提供导入按钮。
+func (a *app) starRailNoRecords() bool {
+	return a.starrailLoaded && a.starrailErr == nil && (a.starrail == nil || a.starrail.TotalPulls == 0)
 }
 
 // starrailBody 按数据状态展示崩坏：星穹铁道的抽卡概览。
