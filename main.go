@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
 	"github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
 )
@@ -978,8 +979,8 @@ func appWindowOptions(opts mygo.WindowOptions) mygo.WindowOptions {
 }
 
 func main() {
-	// 原生更新窗口，避免为更新功能额外依赖 WebView。
-	mygo.Use(native.Plugin)
+	// 原生更新窗口，固定显示简体中文；不为更新功能额外依赖 WebView。
+	mygo.Use(native.New(updater.Options{Language: "zh-Hans"}))
 	a := newApp()
 	mygo.App.WhenReady(func() {
 		// 账号切换需要扫描数据目录；读不到时只是不显示账号入口。
