@@ -132,8 +132,8 @@ func (a *app) sidebar(c *ui.Context, pal *palette) {
 	ui.Column(c).Width(268).Shrink(0).AlignItems(ui.Stretch).Children(func() {
 		ui.Row(c).Height(60).Shrink(0).Padding(0, 12, 0, left).Gap(10).
 			AlignItems(ui.Center).DragWindow().Children(func() {
-			ui.Image(c, appIcon).Size(26, 26).Shrink(0).Radius(6).
-				Border(0.5, ui.RGBA(255, 255, 255, 0.18))
+			alignIconText(ui.Image(c, appIcon).Size(26, 26).Shrink(0).Radius(6).
+				Border(0.5, ui.RGBA(255, 255, 255, 0.18)))
 			ui.Column(c).Gap(1).Children(func() {
 				ui.Text(c, "hoyo-gacha").FontSize(13.5).FontWeight(600).TextColor(pal.text).SingleLine()
 				ui.Text(c, "抽卡记录管理").FontSize(11).TextColor(pal.textFaint).SingleLine()
@@ -175,13 +175,19 @@ func (a *app) gameRow(c *ui.Context, pal *palette, g *game) {
 		chosen(row, pal)
 	}
 	row.Children(func() {
-		gameImage(c, g, 18, pal)
+		alignIconText(gameImage(c, g, 18, pal))
 		ui.Text(c, g.name).FontSize(13.5).FontWeight(500).TextColor(pal.text).
 			SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
 	})
 	if row.Clicked() && !selected {
 		a.selected = g.id
 	}
+}
+
+// alignIconText 把图标下移 1 DIP，补偿字体行框中偏高的视觉中心，
+// 让图标与同一行的文字在视觉上垂直居中。
+func alignIconText(e ui.Element) ui.Element {
+	return e.Translate(0, 1)
 }
 
 // gameImage 显示游戏的官方图标，圆角与源图一致，并加一条发丝边，
@@ -202,7 +208,7 @@ func (a *app) content(c *ui.Context, pal *palette, g *game) {
 		card.Children(func() {
 			ui.Row(c).Height(44).Shrink(0).Padding(0, 10, 0, 20).Gap(8).
 				AlignItems(ui.Center).DragWindow().Children(func() {
-				gameImage(c, g, 18, pal)
+				alignIconText(gameImage(c, g, 18, pal))
 				ui.Text(c, g.name).FontSize(14).FontWeight(600).TextColor(pal.text).SingleLine()
 				ui.Text(c, "· "+g.tagline).FontSize(12.5).TextColor(pal.textFaint).
 					SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
