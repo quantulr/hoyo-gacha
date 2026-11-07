@@ -297,6 +297,33 @@ func TestGenshinLostStats(t *testing.T) {
 	if d.LostRate() != float64(5)/13 {
 		t.Errorf("歪卡率 %.4f，期望 %.4f", d.LostRate(), float64(5)/13)
 	}
+	if !d.HasLostChannels() {
+		t.Error("限定频段应支持歪卡判定")
+	}
+
+	wantLost := map[string]struct {
+		lost, smallPity int
+		rate            float64
+	}{
+		"301": {2, 7, float64(2) / 7},
+		"302": {3, 6, float64(3) / 6},
+	}
+	for _, ch := range d.Channels {
+		want, tracks := wantLost[ch.Type]
+		if ch.LostTracked != tracks {
+			t.Errorf("频段 %s LostTracked = %v，期望 %v", ch.Type, ch.LostTracked, tracks)
+		}
+		if !tracks {
+			continue
+		}
+		if ch.LostS != want.lost || ch.SmallPityS != want.smallPity {
+			t.Errorf("频段 %s 歪卡统计 %d / %d，期望 %d / %d",
+				ch.Type, ch.LostS, ch.SmallPityS, want.lost, want.smallPity)
+		}
+		if ch.LostRate() != want.rate {
+			t.Errorf("频段 %s 歪卡率 %.4f，期望 %.4f", ch.Type, ch.LostRate(), want.rate)
+		}
+	}
 
 	// 歪后的下一个 S 是大保底；它可能仍是 UP，但不参与 50/50 统计。
 	wantGuaranteed := map[string]bool{"3": true, "5": true, "13": true, "16": true}
@@ -322,7 +349,11 @@ func TestGenshinLostRateCard(t *testing.T) {
 	a.genshin = d
 	a.genshinLoaded = true
 	tt := ui.NewTester(a.view, 960, 680)
-	for _, text := range []string{"歪卡率", "38.46%", "5 歪 / 13 次小保底"} {
+	for _, text := range []string{
+		"歪卡率", "38.46%", "5 歪 / 13 次小保底",
+		"各卡池歪卡率", "28.57%", "2 歪 / 7 次小保底",
+		"50.00%", "3 歪 / 6 次小保底",
+	} {
 		if !tt.HasText(text) {
 			t.Errorf("缺少文本 %q，现有 %q", text, tt.Texts())
 		}
@@ -339,6 +370,9 @@ func TestGenshinLostRateWithoutBannerData(t *testing.T) {
 		if !tt.HasText(text) {
 			t.Errorf("缺少文本 %q，现有 %q", text, tt.Texts())
 		}
+	}
+	if tt.HasText("各卡池歪卡率") {
+		t.Errorf("没有卡池数据时不应显示分池歪卡率，现有 %q", tt.Texts())
 	}
 }
 

@@ -140,18 +140,27 @@ func filterPullRanks(recs []pullRecord, mode int) []pullRecord {
 
 // channelStats 是一个卡池频道的统计。
 type channelStats struct {
-	Type       string
-	Name       string
-	Pulls      int
-	S          int
-	A          int
-	B          int
-	Pity       int // 距上一个 S 级已经抽了多少次
-	HardPity   int
-	Average    float64      // 平均多少抽出一个 S 级
-	LostS      int          // 小保底中歪掉的 S 级
-	SmallPityS int          // 计入歪卡率的小保底 S 级，不含大保底
-	Records    []pullRecord // 按时间从新到旧
+	Type        string
+	Name        string
+	Pulls       int
+	S           int
+	A           int
+	B           int
+	Pity        int // 距上一个 S 级已经抽了多少次
+	HardPity    int
+	Average     float64      // 平均多少抽出一个 S 级
+	LostS       int          // 小保底中歪掉的 S 级
+	SmallPityS  int          // 计入歪卡率的小保底 S 级，不含大保底
+	LostTracked bool         // 该频段支持歪卡判定（限定卡池）
+	Records     []pullRecord // 按时间从新到旧
+}
+
+// LostRate 返回该频段小保底中的歪卡率。
+func (ch channelStats) LostRate() float64 {
+	if ch.SmallPityS == 0 {
+		return 0
+	}
+	return float64(ch.LostS) / float64(ch.SmallPityS)
 }
 
 // countLost 汇总用于歪卡率的小保底次数与其中的歪卡数。
@@ -269,6 +278,16 @@ func (d *gachaData) LostRate() float64 {
 		return 0
 	}
 	return float64(lost) / float64(smallPity)
+}
+
+// HasLostChannels 表示数据里是否有支持歪卡判定的限定频段。
+func (d *gachaData) HasLostChannels() bool {
+	for _, ch := range d.Channels {
+		if ch.LostTracked {
+			return true
+		}
+	}
+	return false
 }
 
 // loadGameData 从应用数据目录读取一款游戏的抽卡数据。

@@ -168,6 +168,7 @@ func annotateGenshinLost(d *gachaData, banners []genshinBanner) {
 		if genshinBannerChannel(ch.Type) == "" {
 			continue
 		}
+		ch.LostTracked = true
 		guaranteed := false
 		// 记录最新在前，倒序遍历才能按时间顺序判断大保底。
 		for j := len(ch.Records) - 1; j >= 0; j-- {

@@ -441,6 +441,16 @@ func (a *app) gachaOverview(c *ui.Context, pal *palette, g *game, d *gachaData) 
 			sectionHeading(c, pal, "抽卡概览", meta)
 			statCards(c, pal, g, d)
 		})
+		if d.HasLostChannels() {
+			ui.Column(c).Gap(8).Children(func() {
+				sectionHeading(c, pal, "各卡池歪卡率", "小保底 · 大保底不计入分母")
+				for _, ch := range d.Channels {
+					if ch.LostTracked {
+						lostRateRow(c, pal, g, ch)
+					}
+				}
+			})
+		}
 		ui.Column(c).Gap(8).Children(func() {
 			sectionHeading(c, pal, g.pityTerm, "自上次 S 级起")
 			for _, ch := range d.Channels {
@@ -673,6 +683,41 @@ func channelRow(c *ui.Context, pal *palette, g *game, ch channelStats) {
 					return
 				}
 				p.Fill(ui.Rect{X: r.X, Y: r.Y, W: r.W * min(pct, 1), H: r.H}, color, r.H/2)
+			})
+		})
+	})
+}
+
+func lostRateRow(c *ui.Context, pal *palette, g *game, ch channelStats) {
+	color := g.channelColor(ch.Type, pal)
+	value, detail, fg := "—", "暂无小保底记录", pal.textFaint
+	rate := ch.LostRate()
+	if ch.SmallPityS > 0 {
+		value = fmt.Sprintf("%.2f%%", rate*100)
+		detail = fmt.Sprintf("%d 歪 / %d 次小保底", ch.LostS, ch.SmallPityS)
+		fg = pal.text
+		if ch.LostS > 0 {
+			fg = pal.danger
+		}
+	}
+	ui.Row(c).Height(52).Shrink(0).Padding(0, 14).Gap(12).AlignItems(ui.Center).
+		Background(pal.chip).Radius(10).Children(func() {
+		ui.Box(c).Size(8, 8).Shrink(0).Radius(4).Background(color)
+		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+			ui.Text(c, ch.Name).FontSize(13).FontWeight(600).TextColor(pal.text).SingleLine()
+			ui.Text(c, detail).FontSize(11.5).TextColor(pal.textFaint).FontFeatures("tnum").
+				SingleLine().Ellipsis("…")
+		})
+		ui.Column(c).Width(150).Shrink(0).AlignItems(ui.End).Gap(6).Children(func() {
+			ui.Text(c, value).FontSize(13).FontWeight(650).TextColor(fg).
+				FontFeatures("tnum").SingleLine()
+			pct := float32(rate)
+			bar := ui.Box(c).Width(150).Height(5).Radius(2.5).Background(pal.text.Alpha(0.08))
+			bar.Draw(func(p *ui.Painter, r ui.Rect) {
+				if pct <= 0 {
+					return
+				}
+				p.Fill(ui.Rect{X: r.X, Y: r.Y, W: r.W * min(pct, 1), H: r.H}, pal.danger, r.H/2)
 			})
 		})
 	})

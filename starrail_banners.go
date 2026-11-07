@@ -165,6 +165,7 @@ func annotateStarRailLost(d *gachaData, banners []starRailBanner) {
 		if starRailBannerChannel(ch.Type) == "" {
 			continue
 		}
+		ch.LostTracked = true
 		guaranteed := false
 		// 记录最新在前，倒序遍历才能按时间顺序判断大保底。
 		for j := len(ch.Records) - 1; j >= 0; j-- {
