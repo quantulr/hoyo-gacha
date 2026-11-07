@@ -73,10 +73,10 @@ func refreshStarRailData(progress func(string)) (*gachaRefreshResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	return refreshStarRailDir(filepath.Join(root, "data", "starrail"), progress)
+	return refreshStarRailRoot(root, progress)
 }
 
-func refreshStarRailDir(dir string, progress func(string)) (*gachaRefreshResult, error) {
+func refreshStarRailRoot(root string, progress func(string)) (*gachaRefreshResult, error) {
 	raw, err := findStarRailLogURL(starRailLogPaths())
 	if err != nil {
 		return nil, err
@@ -85,7 +85,7 @@ func refreshStarRailDir(dir string, progress func(string)) (*gachaRefreshResult,
 	if err != nil {
 		return nil, err
 	}
-	return fetchStarRailAll(dir, api, progress)
+	return fetchStarRailAll(root, api, progress)
 }
 
 // starRailLogPaths 返回国服与国际服客户端可能写入的玩家日志路径。
@@ -239,8 +239,9 @@ func starRailFetchUID(api *starRailAPIURL) (string, string, int, error) {
 	return "", region, zone, nil
 }
 
-// fetchStarRailAll 抓取全部跃迁频段，与本地数据合并后写回 dir。
-func fetchStarRailAll(dir string, api *starRailAPIURL, progress func(string)) (*gachaRefreshResult, error) {
+// fetchStarRailAll 抓取全部跃迁频段，与本地数据合并后写回应用数据目录。
+func fetchStarRailAll(root string, api *starRailAPIURL, progress func(string)) (*gachaRefreshResult, error) {
+	dir := gameDataDir(root, "starrail")
 	if progress == nil {
 		progress = func(string) {}
 	}
@@ -286,7 +287,7 @@ func fetchStarRailAll(dir string, api *starRailAPIURL, progress func(string)) (*
 
 	merged, added := mergeGachaExport(local, fetched, starRailChannelOrder, starRailChannelNames, "跃迁 ")
 	merged.Time = time.Now().UnixMilli()
-	if err := saveGachaExport(dir, merged); err != nil {
+	if err := saveGachaExport(root, "starrail", merged); err != nil {
 		return nil, err
 	}
 	total := 0

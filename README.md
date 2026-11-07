@@ -46,7 +46,7 @@ Hoyo Gacha 是一款用 Go 和 [MyGo](https://github.com/egoist/mygo) 编写的�
 
 ### 手动导入
 
-如果已有 `gacha-list-<uid>.json`（例如由 genshin-wish-export、star-rail-warp-export 等工具生成），选择对应游戏后点右上角「导入」并选中文件即可。应用会把文件写入该游戏的数据目录，并将 `config.json` 的 `current` 指向文件中的 UID；同 UID 的旧文件会被覆盖。
+如果已有 `gacha-list-<uid>.json`（例如由 genshin-wish-export、star-rail-warp-export 等工具生成），选择对应游戏后点右上角「导入」并选中文件即可。应用会把文件写入该游戏的数据目录，并将 `config.toml` 中对应游戏的 `current` 指向文件中的 UID；同 UID 的旧文件会被覆盖。
 
 也可以手动放入对应游戏的数据目录后重新启动：
 
@@ -56,13 +56,25 @@ Hoyo Gacha 是一款用 Go 和 [MyGo](https://github.com/egoist/mygo) 编写的�
 | 崩坏：星穹铁道 | `%APPDATA%\Hoyo Gacha\data\starrail\` |
 | 绝区零 | `%APPDATA%\Hoyo Gacha\data\zzz\` |
 
-开发版（`go tool mygo dev`）使用 `%APPDATA%\Hoyo Gacha Dev`。应用会读取文件中的 UID，并写入该目录 `config.json` 的 `current`。
+开发版（`go tool mygo dev`）使用 `%APPDATA%\Hoyo Gacha Dev`。应用会读取文件中的 UID，并写入数据根目录 `config.toml` 中对应游戏的 `current`。
+
+`config.toml` 用 `[games.<game>]` 段统一保存各游戏配置：
+
+```toml
+[games.genshin]
+current = "202"
+
+[games.starrail]
+current = "101"
+```
+
+旧版的 `data\<game>\config.json` 仍会被读取一次，并在下次保存时自动迁移到 `config.toml`。
 
 0.3.0 及更早版本的数据目录是 `%APPDATA%\hoyo-gacha`。升级后把该目录里的文件复制到 `%APPDATA%\Hoyo Gacha` 即可保留已有记录。
 
 如果数据目录里还没有 `gacha-list-*.json`，应用会提示导入文件，或先在游戏内打开记录页后点「刷新」获取。
 
-同一游戏有多个账号时，每个 UID 各保存一份 `gacha-list-<uid>.json`。应用优先读取 `config.json` 中 `current` 指向的账号；没有配置时读取最近修改的文件。自动刷新与手动导入可以混用，刷新按记录 id 合并，不会丢弃本地已有的其他频段。
+同一游戏有多个账号时，每个 UID 各保存一份 `gacha-list-<uid>.json`。应用优先读取 `config.toml` 中 `current` 指向的账号；没有配置时读取最近修改的文件。自动刷新与手动导入可以混用，刷新按记录 id 合并，不会丢弃本地已有的其他频段。
 
 ## 自动更新与发布
 
@@ -109,7 +121,8 @@ gh secret set MYGO_UPDATER_PRIVATE_KEY < path/to/mygo-update.key
 每款游戏的数据位于 `data\<game>\`：
 
 - `gacha-list-<uid>.json`：抽卡记录。
-- `config.json`：当前账号 UID 等配置。
+
+数据根目录的 `config.toml` 保存各游戏当前账号 UID 等配置，例如 `[games.genshin] current = "202"`。
 
 安全说明：
 
@@ -151,7 +164,7 @@ go tool mygo vet        # go vet + MyGo UI 生命周期检查
 - 原神集录祈愿、常驻、新手、千星奇域颂愿，星穹铁道常驻/新手，绝区零常驻/邦布频段不判定歪。
 - 内置卡池数据不会自动更新；新版本需要更新数据文件后重新构建。
 - 自动刷新目前主要针对 Windows 客户端，其他平台未验证。
-- 同一游戏多账号时，应用启动读取 `config.json` 的 `current` 账号，界面内暂不提供账号切换。
+- 同一游戏多账号时，应用启动读取 `config.toml` 的 `current` 账号，界面内暂不提供账号切换。
 
 ## 致谢
 

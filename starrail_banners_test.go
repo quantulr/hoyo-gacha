@@ -283,7 +283,7 @@ func TestStarRailLostBadge(t *testing.T) {
 }
 
 func TestLoadStarRailAnnotatesLost(t *testing.T) {
-	dir := t.TempDir()
+	root := t.TempDir()
 	exp := &gachaExport{
 		UID:     "1",
 		TypeMap: [][2]string{{"11", "角色活动跃迁"}},
@@ -292,10 +292,10 @@ func TestLoadStarRailAnnotatesLost(t *testing.T) {
 			{ID: "2", Name: "姬子", RankType: "5", Time: "2023-04-27 12:00:00"},
 		}}},
 	}
-	if err := saveGachaExport(dir, exp); err != nil {
+	if err := saveGachaExport(root, "starrail", exp); err != nil {
 		t.Fatal(err)
 	}
-	d, err := loadGachaDir(dir, "starrail")
+	d, err := loadGachaGame(root, "starrail")
 	if err != nil {
 		t.Fatal(err)
 	}

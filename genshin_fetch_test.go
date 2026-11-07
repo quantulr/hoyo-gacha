@@ -133,7 +133,7 @@ func TestParseGenshinLogURL(t *testing.T) {
 }
 
 func TestFetchGenshinAll(t *testing.T) {
-	dir := t.TempDir()
+	root := t.TempDir()
 	local := &gachaExport{
 		UID:            "42",
 		Lang:           "zh-cn",
@@ -151,7 +151,7 @@ func TestFetchGenshinAll(t *testing.T) {
 			}},
 		},
 	}
-	if err := saveGachaExport(dir, local); err != nil {
+	if err := saveGachaExport(root, "genshin", local); err != nil {
 		t.Fatal(err)
 	}
 
@@ -240,7 +240,7 @@ func TestFetchGenshinAll(t *testing.T) {
 	defer func() { genshinHTTPClient, genshinSleep = oldClient, oldSleep }()
 
 	api := &genshinAPIURL{domain: server.URL, query: "authkey=test&lang=zh-cn&game_biz=hk4e_cn", lang: "zh-cn"}
-	res, err := fetchGenshinAll(dir, api, nil)
+	res, err := fetchGenshinAll(root, api, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +248,7 @@ func TestFetchGenshinAll(t *testing.T) {
 		t.Errorf("结果 %+v", res)
 	}
 
-	d, err := loadGachaDir(dir, "genshin")
+	d, err := loadGachaGame(root, "genshin")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,7 +283,7 @@ func TestFetchGenshinAll(t *testing.T) {
 		t.Errorf("活动颂愿记录 %+v", got)
 	}
 
-	saved, err := loadGachaLocal(dir, "42")
+	saved, err := loadGachaLocal(gameDataDir(root, "genshin"), "42")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +327,7 @@ func TestFetchGenshinAll(t *testing.T) {
 }
 
 func TestFetchGenshinOnlyBeyond(t *testing.T) {
-	dir := t.TempDir()
+	root := t.TempDir()
 	var mu sync.Mutex
 	var requests []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -390,7 +390,7 @@ func TestFetchGenshinOnlyBeyond(t *testing.T) {
 	defer func() { genshinHTTPClient, genshinSleep = oldClient, oldSleep }()
 
 	api := &genshinAPIURL{domain: server.URL, query: "authkey=test&lang=en&game_biz=hk4e_os", lang: "en"}
-	res, err := fetchGenshinAll(dir, api, nil)
+	res, err := fetchGenshinAll(root, api, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -398,7 +398,7 @@ func TestFetchGenshinOnlyBeyond(t *testing.T) {
 	if res.UID != "612345678" || res.Added != 1 || res.Total != 1 {
 		t.Errorf("结果 %+v", res)
 	}
-	d, err := loadGachaDir(dir, "genshin")
+	d, err := loadGachaGame(root, "genshin")
 	if err != nil {
 		t.Fatal(err)
 	}

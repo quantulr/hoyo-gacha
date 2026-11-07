@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/egoist/mygo"
 )
@@ -38,7 +37,7 @@ func (a *app) importGacha(g *game) {
 		root, err := mygo.App.Path(mygo.PathUserData)
 		var added int
 		if err == nil {
-			added, err = importGachaFile(filepath.Join(root, "data", g.id), g, paths[0])
+			added, err = importGachaFile(root, g, paths[0])
 		}
 		a.publish(func() {
 			a.importing = false
@@ -57,9 +56,9 @@ func (a *app) importGacha(g *game) {
 	}()
 }
 
-// importGachaFile 读取 src，把其中的 UID 和记录写入 dir/gacha-list-<uid>.json，
-// 并更新 config.json 的 current。返回导入的记录数。
-func importGachaFile(dir string, g *game, src string) (int, error) {
+// importGachaFile 读取 src，把其中的 UID 和记录写入该游戏的数据目录，
+// 并更新统一配置的 current。返回导入的记录数。
+func importGachaFile(root string, g *game, src string) (int, error) {
 	data, err := os.ReadFile(src)
 	if err != nil {
 		return 0, err
@@ -78,7 +77,7 @@ func importGachaFile(dir string, g *game, src string) (int, error) {
 		return 0, errors.New("文件中没有该游戏的抽卡记录，请确认选择了正确的文件")
 	}
 	d := newGachaData(exp, g.id)
-	if err := saveGachaExport(dir, exp); err != nil {
+	if err := saveGachaExport(root, g.id, exp); err != nil {
 		return 0, err
 	}
 	return d.TotalPulls, nil

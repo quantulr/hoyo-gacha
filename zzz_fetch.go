@@ -75,10 +75,10 @@ func refreshZZZData(progress func(string)) (*gachaRefreshResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	return refreshZZZDir(filepath.Join(root, "data", "zzz"), progress)
+	return refreshZZZRoot(root, progress)
 }
 
-func refreshZZZDir(dir string, progress func(string)) (*gachaRefreshResult, error) {
+func refreshZZZRoot(root string, progress func(string)) (*gachaRefreshResult, error) {
 	raw, err := findZZZLogURL(zzzLogPaths())
 	if err != nil {
 		return nil, err
@@ -87,7 +87,7 @@ func refreshZZZDir(dir string, progress func(string)) (*gachaRefreshResult, erro
 	if err != nil {
 		return nil, err
 	}
-	return fetchZZZAll(dir, api, progress)
+	return fetchZZZAll(root, api, progress)
 }
 
 // zzzLogPaths 返回国服与国际服客户端可能写入的玩家日志路径。
@@ -191,8 +191,9 @@ func zzzFetchUID(api *zzzAPIURL) (string, string, error) {
 	return "", region, nil
 }
 
-// fetchZZZAll 抓取全部频段，与本地数据合并后写回 dir。
-func fetchZZZAll(dir string, api *zzzAPIURL, progress func(string)) (*gachaRefreshResult, error) {
+// fetchZZZAll 抓取全部频段，与本地数据合并后写回应用数据目录。
+func fetchZZZAll(root string, api *zzzAPIURL, progress func(string)) (*gachaRefreshResult, error) {
+	dir := gameDataDir(root, "zzz")
 	if progress == nil {
 		progress = func(string) {}
 	}
@@ -237,7 +238,7 @@ func fetchZZZAll(dir string, api *zzzAPIURL, progress func(string)) (*gachaRefre
 
 	merged, added := mergeZZZExport(local, fetched)
 	merged.Time = time.Now().UnixMilli()
-	if err := saveZZZExport(dir, merged); err != nil {
+	if err := saveZZZExport(root, merged); err != nil {
 		return nil, err
 	}
 	total := 0
@@ -348,6 +349,6 @@ func mergeZZZExport(local, fetched *gachaExport) (*gachaExport, int) {
 }
 
 // saveZZZExport 写入绝区零的抽卡导出文件。
-func saveZZZExport(dir string, exp *gachaExport) error {
-	return saveGachaExport(dir, exp)
+func saveZZZExport(root string, exp *gachaExport) error {
+	return saveGachaExport(root, "zzz", exp)
 }

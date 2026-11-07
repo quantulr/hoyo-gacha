@@ -310,13 +310,22 @@ func loadGameData(game string) (*gachaData, error) {
 	if err != nil {
 		return nil, err
 	}
-	return loadGachaDir(filepath.Join(root, "data", game), game)
+	return loadGachaGame(root, game)
 }
 
-// loadGachaDir 从 dir 读取 config.json 指向的抽卡文件。
+// loadGachaGame 从 root 下的统一配置和数据目录读取一款游戏。
 // 还没有任何 gacha-list-*.json 时返回 nil, nil，让界面提示导入或获取。
-func loadGachaDir(dir, game string) (*gachaData, error) {
-	path, err := gachaFilePath(dir)
+func loadGachaGame(root, game string) (*gachaData, error) {
+	dir := gameDataDir(root, game)
+	current := ""
+	if cfg, err := loadGameConfig(root); err == nil {
+		current = configCurrent(cfg, game)
+	}
+	// 兼容旧版每款游戏各自的 config.json；读取后会在下面写回统一配置。
+	if current == "" {
+		current = legacyCurrent(dir)
+	}
+	path, err := gachaFilePath(dir, current)
 	if errors.Is(err, errNoGachaFile) {
 		return nil, nil
 	}
@@ -335,16 +344,28 @@ func loadGachaDir(dir, game string) (*gachaData, error) {
 		exp.UID = gachaUIDFromPath(path)
 	}
 	d := newGachaData(exp, game)
-	// 手动导入的文件可能还没有 config.json；记下这个账号，下次启动继续读取。
+	// 手动导入的文件可能还没有配置；记下这个账号，下次启动继续读取。
 	// 配置写入失败不影响已经读入的记录。
 	if exp.UID != "" {
-		_ = saveGachaCurrentIfChanged(dir, exp.UID)
+		_ = saveGameCurrentIfChanged(root, game, exp.UID)
 	}
 	// 游戏的补充数据（如卡池）读取失败不影响抽卡记录本身。
 	if g := gameByID(game); g != nil && g.annotate != nil {
 		g.annotate(d)
 	}
 	return d, nil
+}
+
+// legacyCurrent 读取旧版游戏目录里的 config.json，用于迁移到统一配置。
+func legacyCurrent(dir string) string {
+	var cfg struct {
+		Current string `json:"current"`
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "config.json"))
+	if err != nil || json.Unmarshal(data, &cfg) != nil {
+		return ""
+	}
+	return cfg.Current
 }
 
 // errNoGachaFile 表示目录里还没有任何导出的抽卡文件。
@@ -359,18 +380,13 @@ func gachaUIDFromPath(path string) string {
 	return strings.TrimSuffix(strings.TrimPrefix(name, "gacha-list-"), ".json")
 }
 
-// gachaFilePath 找到要读取的抽卡文件：config.json 的 current 账号，
+// gachaFilePath 找到要读取的抽卡文件：统一配置里的当前账号，
 // 否则取最近修改的 gacha-list-*.json。
-func gachaFilePath(dir string) (string, error) {
-	var cfg struct {
-		Current string `json:"current"`
-	}
-	if data, err := os.ReadFile(filepath.Join(dir, "config.json")); err == nil {
-		if json.Unmarshal(data, &cfg) == nil && cfg.Current != "" {
-			p := filepath.Join(dir, "gacha-list-"+cfg.Current+".json")
-			if _, err := os.Stat(p); err == nil {
-				return p, nil
-			}
+func gachaFilePath(dir, current string) (string, error) {
+	if current != "" {
+		p := filepath.Join(dir, "gacha-list-"+current+".json")
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
 		}
 	}
 	matches, err := filepath.Glob(filepath.Join(dir, "gacha-list-*.json"))

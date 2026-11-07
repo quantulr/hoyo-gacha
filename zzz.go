@@ -35,9 +35,9 @@ func loadZZZData() (*gachaData, error) {
 	return loadGameData("zzz")
 }
 
-// loadZZZDir 从 dir 读取 config.json 指向的绝区零抽卡文件。
-func loadZZZDir(dir string) (*gachaData, error) {
-	return loadGachaDir(dir, "zzz")
+// loadZZZGame 从 root 读取统一配置指向的绝区零抽卡文件。
+func loadZZZGame(root string) (*gachaData, error) {
+	return loadGachaGame(root, "zzz")
 }
 
 // parseZZZ 解析绝区零抽卡导出文件。

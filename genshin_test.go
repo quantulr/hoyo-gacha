@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -85,14 +84,15 @@ func TestGenshinStats(t *testing.T) {
 }
 
 func TestLoadGenshinDir(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{"current":"202"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	root := t.TempDir()
+	dir := testGameDir(t, root, "genshin")
+	writeTestConfig(t, root, `[games.genshin]
+current = "202"
+`)
 	if err := os.WriteFile(filepath.Join(dir, "gacha-list-202.json"), []byte(genshinFixture), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	d, err := loadGachaDir(dir, "genshin")
+	d, err := loadGachaGame(root, "genshin")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestLoadGenshinDir(t *testing.T) {
 
 // 没有导出文件时返回空数据，界面应提示导入或获取，而不是读取失败。
 func TestLoadGenshinDirMissing(t *testing.T) {
-	d, err := loadGachaDir(t.TempDir(), "genshin")
+	d, err := loadGachaGame(t.TempDir(), "genshin")
 	if err != nil || d != nil {
 		t.Fatalf("空目录返回 %+v, %v", d, err)
 	}
@@ -111,33 +111,29 @@ func TestLoadGenshinDirMissing(t *testing.T) {
 
 // 手动导入 gacha-list-*.json 后，把文件里的 UID 写成当前账号。
 func TestLoadGenshinDirImportsCurrent(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{"proxyPort":8325}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	root := t.TempDir()
+	dir := testGameDir(t, root, "genshin")
+	writeTestConfig(t, root, `[games.genshin]
+proxyPort = 8325
+`)
 	if err := os.WriteFile(filepath.Join(dir, "gacha-list-202.json"), []byte(genshinFixture), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	d, err := loadGachaDir(dir, "genshin")
+	d, err := loadGachaGame(root, "genshin")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if d.UID != "202" {
 		t.Fatalf("读入 UID %q", d.UID)
 	}
-	data, err := os.ReadFile(filepath.Join(dir, "config.json"))
-	if err != nil {
-		t.Fatal(err)
+	cfg := readTestConfig(t, root)
+	if got := configCurrent(cfg, "genshin"); got != "202" {
+		t.Errorf("config current = %q", got)
 	}
-	var cfg map[string]any
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		t.Fatal(err)
-	}
-	if cfg["current"] != "202" {
-		t.Errorf("config current = %v", cfg["current"])
-	}
-	if cfg["proxyPort"] != float64(8325) {
-		t.Errorf("config 其他字段被覆盖：%v", cfg)
+	games, _ := cfg["games"].(map[string]any)
+	genshin, _ := games["genshin"].(map[string]any)
+	if genshin["proxyPort"] != int64(8325) {
+		t.Errorf("config 其他字段被覆盖：%#v", genshin)
 	}
 }
 

@@ -90,10 +90,10 @@ func refreshGenshinData(progress func(string)) (*gachaRefreshResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	return refreshGenshinDir(filepath.Join(root, "data", "genshin"), progress)
+	return refreshGenshinRoot(root, progress)
 }
 
-func refreshGenshinDir(dir string, progress func(string)) (*gachaRefreshResult, error) {
+func refreshGenshinRoot(root string, progress func(string)) (*gachaRefreshResult, error) {
 	raw, err := findGenshinLogURL(genshinLogFiles())
 	if err != nil {
 		return nil, err
@@ -102,7 +102,7 @@ func refreshGenshinDir(dir string, progress func(string)) (*gachaRefreshResult, 
 	if err != nil {
 		return nil, err
 	}
-	return fetchGenshinAll(dir, api, progress)
+	return fetchGenshinAll(root, api, progress)
 }
 
 // genshinLogFiles 返回国服、国际服客户端与云游戏可能写入的日志文件。
@@ -306,8 +306,9 @@ func genshinRegionZone(uid string) int {
 	}
 }
 
-// fetchGenshinAll 抓取全部祈愿频段，与本地数据合并后写回 dir。
-func fetchGenshinAll(dir string, api *genshinAPIURL, progress func(string)) (*gachaRefreshResult, error) {
+// fetchGenshinAll 抓取全部祈愿频段，与本地数据合并后写回应用数据目录。
+func fetchGenshinAll(root string, api *genshinAPIURL, progress func(string)) (*gachaRefreshResult, error) {
+	dir := gameDataDir(root, "genshin")
 	if progress == nil {
 		progress = func(string) {}
 	}
@@ -368,7 +369,7 @@ func fetchGenshinAll(dir string, api *genshinAPIURL, progress func(string)) (*ga
 
 	merged, added := mergeGachaExport(local, fetched, genshinChannelOrder, genshinChannelNames, "祈愿 ")
 	merged.Time = time.Now().UnixMilli()
-	if err := saveGachaExport(dir, merged); err != nil {
+	if err := saveGachaExport(root, "genshin", merged); err != nil {
 		return nil, err
 	}
 	total := 0

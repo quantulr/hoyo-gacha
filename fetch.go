@@ -254,11 +254,12 @@ func sortGachaRecords(recs []gachaRecord) {
 	})
 }
 
-// saveGachaExport 写入 gacha-list-<uid>.json，并把 config.json 的 current 指向该账号。
-func saveGachaExport(dir string, exp *gachaExport) error {
+// saveGachaExport 写入 gacha-list-<uid>.json，并把统一配置的 current 指向该账号。
+func saveGachaExport(root, game string, exp *gachaExport) error {
 	if exp.UID == "" {
 		return errors.New("抽卡数据缺少 UID")
 	}
+	dir := gameDataDir(root, game)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -271,36 +272,7 @@ func saveGachaExport(dir string, exp *gachaExport) error {
 	if err := writeFileAtomic(filepath.Join(dir, "gacha-list-"+exp.UID+".json"), buf.Bytes()); err != nil {
 		return err
 	}
-	return saveGachaCurrent(dir, exp.UID)
-}
-
-// saveGachaCurrentIfChanged 在 current 还不是 uid 时写入 config.json，
-// 避免每次启动都重写没有变化的配置。
-func saveGachaCurrentIfChanged(dir, uid string) error {
-	var cfg struct {
-		Current string `json:"current"`
-	}
-	if data, err := os.ReadFile(filepath.Join(dir, "config.json")); err == nil {
-		if json.Unmarshal(data, &cfg) == nil && cfg.Current == uid {
-			return nil
-		}
-	}
-	return saveGachaCurrent(dir, uid)
-}
-
-// saveGachaCurrent 更新 config.json 的当前账号，保留其他配置项。
-func saveGachaCurrent(dir, uid string) error {
-	path := filepath.Join(dir, "config.json")
-	cfg := map[string]any{}
-	if data, err := os.ReadFile(path); err == nil {
-		_ = json.Unmarshal(data, &cfg)
-	}
-	cfg["current"] = uid
-	data, err := json.Marshal(cfg)
-	if err != nil {
-		return err
-	}
-	return writeFileAtomic(path, data)
+	return saveGameCurrent(root, game, exp.UID)
 }
 
 // sanitizeURLError 剥掉 net/url 错误里的完整链接，避免 authkey 出现在界面或日志里。

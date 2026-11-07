@@ -150,10 +150,11 @@ func TestMergeZZZExport(t *testing.T) {
 }
 
 func TestSaveZZZExport(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{"current":"1","proxyPort":8325}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	root := t.TempDir()
+	writeTestConfig(t, root, `[games.zzz]
+current = "1"
+proxyPort = 8325
+`)
 	exp := &gachaExport{
 		UID:            "42",
 		Lang:           "zh-cn",
@@ -163,34 +164,29 @@ func TestSaveZZZExport(t *testing.T) {
 			{ID: "1", Name: "甲", RankType: "2", Time: "2024-01-01 10:00:00", GachaType: "2", Count: "1"},
 		}}},
 	}
-	if err := saveZZZExport(dir, exp); err != nil {
+	if err := saveZZZExport(root, exp); err != nil {
 		t.Fatal(err)
 	}
-	d, err := loadZZZDir(dir)
+	d, err := loadZZZGame(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if d.UID != "42" || d.TotalPulls != 1 {
 		t.Errorf("读回 %+v", d)
 	}
-	var cfg map[string]any
-	data, err := os.ReadFile(filepath.Join(dir, "config.json"))
-	if err != nil {
-		t.Fatal(err)
+	cfg := readTestConfig(t, root)
+	if got := configCurrent(cfg, "zzz"); got != "42" {
+		t.Errorf("current = %q", got)
 	}
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		t.Fatal(err)
-	}
-	if cfg["current"] != "42" {
-		t.Errorf("current = %v", cfg["current"])
-	}
-	if cfg["proxyPort"] != float64(8325) {
-		t.Errorf("其他配置被丢弃：%v", cfg)
+	games, _ := cfg["games"].(map[string]any)
+	zzz, _ := games["zzz"].(map[string]any)
+	if zzz["proxyPort"] != int64(8325) {
+		t.Errorf("其他配置被丢弃：%#v", zzz)
 	}
 }
 
 func TestFetchZZZAll(t *testing.T) {
-	dir := t.TempDir()
+	root := t.TempDir()
 	local := &gachaExport{
 		UID:            "42",
 		Lang:           "zh-cn",
@@ -201,7 +197,7 @@ func TestFetchZZZAll(t *testing.T) {
 			{ID: "1001", Name: "旧乙", RankType: "3", Time: "2024-01-02 10:00:00", GachaType: "2", Count: "1"},
 		}}},
 	}
-	if err := saveZZZExport(dir, local); err != nil {
+	if err := saveZZZExport(root, local); err != nil {
 		t.Fatal(err)
 	}
 
@@ -251,7 +247,7 @@ func TestFetchZZZAll(t *testing.T) {
 	defer func() { zzzHTTPClient, zzzSleep = oldClient, oldSleep }()
 
 	api := &zzzAPIURL{domain: server.URL, query: "authkey=test&lang=zh-cn&game_biz=nap_cn", lang: "zh-cn"}
-	res, err := fetchZZZAll(dir, api, nil)
+	res, err := fetchZZZAll(root, api, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +255,7 @@ func TestFetchZZZAll(t *testing.T) {
 		t.Errorf("结果 %+v", res)
 	}
 
-	d, err := loadZZZDir(dir)
+	d, err := loadZZZGame(root)
 	if err != nil {
 		t.Fatal(err)
 	}

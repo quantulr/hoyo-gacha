@@ -119,7 +119,7 @@ func TestParseStarRailLogURL(t *testing.T) {
 }
 
 func TestFetchStarRailAll(t *testing.T) {
-	dir := t.TempDir()
+	root := t.TempDir()
 	local := &gachaExport{
 		UID:            "42",
 		Lang:           "zh-cn",
@@ -130,7 +130,7 @@ func TestFetchStarRailAll(t *testing.T) {
 			{ID: "1001", Name: "旧乙", RankType: "4", Time: "2024-01-02 10:00:00", GachaType: "11", Count: "1"},
 		}}},
 	}
-	if err := saveGachaExport(dir, local); err != nil {
+	if err := saveGachaExport(root, "starrail", local); err != nil {
 		t.Fatal(err)
 	}
 
@@ -188,7 +188,7 @@ func TestFetchStarRailAll(t *testing.T) {
 	defer func() { starRailHTTPClient, starRailSleep = oldClient, oldSleep }()
 
 	api := &starRailAPIURL{domain: server.URL, query: "authkey=test&lang=zh-cn&game_biz=hkrpg_cn", lang: "zh-cn"}
-	res, err := fetchStarRailAll(dir, api, nil)
+	res, err := fetchStarRailAll(root, api, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +196,7 @@ func TestFetchStarRailAll(t *testing.T) {
 		t.Errorf("结果 %+v", res)
 	}
 
-	d, err := loadGachaDir(dir, "starrail")
+	d, err := loadGachaGame(root, "starrail")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +213,7 @@ func TestFetchStarRailAll(t *testing.T) {
 		}
 	}
 
-	saved, err := loadGachaLocal(dir, "42")
+	saved, err := loadGachaLocal(gameDataDir(root, "starrail"), "42")
 	if err != nil {
 		t.Fatal(err)
 	}

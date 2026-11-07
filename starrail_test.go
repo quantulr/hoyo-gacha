@@ -82,14 +82,15 @@ func TestStarRailStats(t *testing.T) {
 }
 
 func TestLoadStarRailDir(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{"current":"101"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	root := t.TempDir()
+	dir := testGameDir(t, root, "starrail")
+	writeTestConfig(t, root, `[games.starrail]
+current = "101"
+`)
 	if err := os.WriteFile(filepath.Join(dir, "gacha-list-101.json"), []byte(starRailFixture), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	d, err := loadGachaDir(dir, "starrail")
+	d, err := loadGachaGame(root, "starrail")
 	if err != nil {
 		t.Fatal(err)
 	}

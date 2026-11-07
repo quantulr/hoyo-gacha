@@ -404,7 +404,7 @@ func TestGenshinLostBadge(t *testing.T) {
 }
 
 func TestLoadGenshinAnnotatesLost(t *testing.T) {
-	dir := t.TempDir()
+	root := t.TempDir()
 	exp := &gachaExport{
 		UID:     "1",
 		TypeMap: [][2]string{{"301", "角色活动祈愿"}},
@@ -413,10 +413,10 @@ func TestLoadGenshinAnnotatesLost(t *testing.T) {
 			{ID: "2", Name: "迪卢克", RankType: "5", Time: "2020-10-01 12:00:00"},
 		}}},
 	}
-	if err := saveGachaExport(dir, exp); err != nil {
+	if err := saveGachaExport(root, "genshin", exp); err != nil {
 		t.Fatal(err)
 	}
-	d, err := loadGachaDir(dir, "genshin")
+	d, err := loadGachaGame(root, "genshin")
 	if err != nil {
 		t.Fatal(err)
 	}

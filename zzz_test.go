@@ -79,21 +79,22 @@ func TestZZZStats(t *testing.T) {
 }
 
 func TestLoadZZZDir(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{"current":"100"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	root := t.TempDir()
+	dir := testGameDir(t, root, "zzz")
+	writeTestConfig(t, root, `[games.zzz]
+current = "100"
+`)
 	if err := os.WriteFile(filepath.Join(dir, "gacha-list-100.json"), []byte(zzzFixture), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	d, err := loadZZZDir(dir)
+	d, err := loadZZZGame(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if d.UID != "100" || d.TotalPulls != 5 {
 		t.Errorf("读入 %+v", d)
 	}
-	if d, err := loadZZZDir(t.TempDir()); err != nil || d != nil {
+	if d, err := loadZZZGame(t.TempDir()); err != nil || d != nil {
 		t.Errorf("空目录返回 %+v, %v", d, err)
 	}
 }
