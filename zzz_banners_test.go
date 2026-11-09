@@ -201,6 +201,10 @@ func TestZZZLostBadge(t *testing.T) {
 		Result: []gachaGroup{{Type: "2", Records: []gachaRecord{
 			{ID: "1", Name: "艾莲", RankType: "4", Time: "2024-07-10 12:00:00"},
 			{ID: "2", Name: "猫又", RankType: "4", Time: "2024-07-11 12:00:00"},
+			{ID: "3", Name: "朱鸢", RankType: "4", Time: "2024-07-25 12:00:00"},
+			{ID: "4", Name: "艾莲", RankType: "4", Time: "2024-07-26 12:00:00"},
+			{ID: "5", Name: "雅", RankType: "4", Time: "2024-12-18 10:52:00"},
+			{ID: "6", Name: "「猫又」", RankType: "4", Time: "2024-12-18 10:52:00"},
 		}}},
 	})
 	annotateZZZLost(d, set.Banners)
@@ -215,6 +219,9 @@ func TestZZZLostBadge(t *testing.T) {
 	}
 	if !tt.HasText("歪") {
 		t.Errorf("记录页缺少歪标识，现有 %q", tt.Texts())
+	}
+	if !tt.HasText("三连歪") {
+		t.Errorf("记录页缺少三连歪标识，现有 %q", tt.Texts())
 	}
 	if !tt.HasText("猫又") || !tt.HasText("艾莲") {
 		t.Errorf("记录页缺少记录，现有 %q", tt.Texts())

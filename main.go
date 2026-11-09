@@ -617,7 +617,7 @@ func recordRow(c *ui.Context, pal *palette, g *game, r pullRecord) {
 			SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
 		if r.Tier == 0 {
 			if r.Lost {
-				recordTag(c, "歪", pal.danger)
+				recordTag(c, lostBadge(r.LostStreak), pal.danger)
 			}
 			if r.Guaranteed {
 				recordTag(c, "大保底", pal.accent)
@@ -638,6 +638,36 @@ func recordTag(c *ui.Context, text string, color ui.Color) {
 		Background(color.Alpha(0.12)).Center().Children(func() {
 		ui.Text(c, text).FontSize(10).FontWeight(650).TextColor(color).SingleLine()
 	})
+}
+
+// lostBadge 返回歪卡标签：单次歪显示「歪」，连续歪卡显示「二连歪」「三连歪」等。
+func lostBadge(streak int) string {
+	if streak <= 1 {
+		return "歪"
+	}
+	return chineseNumber(streak) + "连歪"
+}
+
+// chineseNumber 把 2–99 写成中文数字；更长的连歪直接用阿拉伯数字，避免标签过长。
+func chineseNumber(n int) string {
+	digits := [...]string{"零", "一", "二", "三", "四", "五", "六", "七", "八", "九"}
+	switch {
+	case n < 10:
+		return digits[n]
+	case n < 100:
+		tens, ones := n/10, n%10
+		s := ""
+		if tens > 1 {
+			s = digits[tens]
+		}
+		s += "十"
+		if ones > 0 {
+			s += digits[ones]
+		}
+		return s
+	default:
+		return fmt.Sprintf("%d", n)
+	}
 }
 
 func rankColors(tier int, pal *palette) (fg, bg ui.Color) {

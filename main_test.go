@@ -33,6 +33,26 @@ func TestSidebarChoosesGame(t *testing.T) {
 	}
 }
 
+// 单次歪显示「歪」，连歪用中文数字标注是连续第几次。
+func TestLostBadge(t *testing.T) {
+	cases := map[int]string{
+		0:   "歪",
+		1:   "歪",
+		2:   "二连歪",
+		3:   "三连歪",
+		10:  "十连歪",
+		11:  "十一连歪",
+		20:  "二十连歪",
+		99:  "九十九连歪",
+		100: "100连歪",
+	}
+	for streak, want := range cases {
+		if got := lostBadge(streak); got != want {
+			t.Errorf("lostBadge(%d) = %q，期望 %q", streak, got, want)
+		}
+	}
+}
+
 // 记录行徽标只显示星级数字，绝区零仍用 S/A/B。
 func TestRankBadge(t *testing.T) {
 	cases := []struct {

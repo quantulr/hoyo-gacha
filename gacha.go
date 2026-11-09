@@ -115,6 +115,7 @@ type pullRecord struct {
 	Lost        bool // 最高档不是当期 UP；常驻、邦布或缺少卡池数据时为 false
 	BannerKnown bool // 有当期卡池数据，Lost 的结果有效
 	Guaranteed  bool // 上一次限定 S 歪后触发的大保底，不计入歪卡率
+	LostStreak  int  // 连续歪卡的序号：这条记录是连续第几次小保底歪，非歪为 0
 }
 
 // 记录页的筛选模式。零值默认只看最高档。
@@ -163,18 +164,25 @@ func (ch channelStats) LostRate() float64 {
 	return float64(ch.LostS) / float64(ch.SmallPityS)
 }
 
-// countLost 汇总用于歪卡率的小保底次数与其中的歪卡数。
-// 大保底由上一次歪触发，必然出 UP，不计入分母。
+// countLost 汇总用于歪卡率的小保底次数与其中的歪卡数，并记录连续歪卡的序号。
+// 大保底由上一次歪触发，必然出 UP，不计入分母，也不打断连歪。
 func (ch *channelStats) countLost() {
 	ch.LostS, ch.SmallPityS = 0, 0
-	for i := range ch.Records {
+	streak := 0
+	// 记录最新在前，倒序遍历得到抽取顺序。
+	for i := len(ch.Records) - 1; i >= 0; i-- {
 		r := &ch.Records[i]
+		r.LostStreak = 0
 		if !r.BannerKnown || r.Guaranteed {
 			continue
 		}
 		ch.SmallPityS++
 		if r.Lost {
+			streak++
 			ch.LostS++
+			r.LostStreak = streak
+		} else {
+			streak = 0
 		}
 	}
 }

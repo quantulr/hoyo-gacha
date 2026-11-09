@@ -274,6 +274,9 @@ func TestStarRailLostBadge(t *testing.T) {
 	if !tt.HasText("歪") {
 		t.Errorf("记录页缺少歪标识，现有 %q", tt.Texts())
 	}
+	if !tt.HasText("二连歪") {
+		t.Errorf("记录页缺少连歪标识，现有 %q", tt.Texts())
+	}
 	if !tt.HasText("大保底") {
 		t.Errorf("记录页缺少大保底标识，现有 %q", tt.Texts())
 	}
