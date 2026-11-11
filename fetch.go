@@ -82,6 +82,36 @@ func gachaIDEquals(id string, n *big.Int) bool {
 	return ok && v.Cmp(n) == 0
 }
 
+// gachaIDKey 把记录 id 归一化成可以比较的字符串（去掉前导零等差异）。
+func gachaIDKey(id string) (string, bool) {
+	v, ok := new(big.Int).SetString(id, 10)
+	if !ok {
+		return "", false
+	}
+	return v.String(), true
+}
+
+// gachaLocalIDs 返回本地各频段已有的记录 id 集合，用于判断一页是否还有新记录。
+func gachaLocalIDs(exp *gachaExport) map[string]map[string]bool {
+	out := make(map[string]map[string]bool)
+	if exp == nil {
+		return out
+	}
+	for _, group := range exp.Result {
+		ids := out[group.Type]
+		if ids == nil {
+			ids = make(map[string]bool)
+			out[group.Type] = ids
+		}
+		for _, rec := range group.Records {
+			if key, ok := gachaIDKey(rec.ID); ok {
+				ids[key] = true
+			}
+		}
+	}
+	return out
+}
+
 // convertGachaTime 把服务器本地时间换算到账号记录的时区。
 func convertGachaTime(s string, from, to int) string {
 	if from == to {

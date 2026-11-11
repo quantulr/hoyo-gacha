@@ -57,7 +57,7 @@ https://webstatic.mihoyo.com/zzz/index.html?authkey=NEW&lang=zh-cn#/info`), 0o64
 }
 
 func TestParseZZZLogURL(t *testing.T) {
-	raw := "https://webstatic.mihoyo.com/zzz/event/index.html?authkey=abc%2B%3D&game_biz=nap_cn&lang=zh-cn&region=prod_gf_cn&page=2&size=20&real_gacha_type=2&end_id=123#/info"
+	raw := "https://webstatic.mihoyo.com/zzz/event/index.html?authkey=abc%2B%3D&game_biz=nap_cn&lang=zh-cn&region=prod_gf_cn&page=2&size=20&real_gacha_type=2&end_id=123&begin_id=456#/info"
 	api, err := parseZZZLogURL(raw)
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +72,7 @@ func TestParseZZZLogURL(t *testing.T) {
 	if q.Get("authkey") != "abc+=" {
 		t.Errorf("authkey 变成 %q", q.Get("authkey"))
 	}
-	for _, key := range []string{"page", "size", "real_gacha_type", "end_id"} {
+	for _, key := range []string{"page", "size", "real_gacha_type", "end_id", "begin_id"} {
 		if q.Has(key) {
 			t.Errorf("分页参数 %q 应被移除", key)
 		}

@@ -217,7 +217,9 @@ func parseGenshinLogURL(raw string) (*genshinAPIURL, error) {
 	if q.Get("authkey") == "" {
 		return nil, errors.New("祈愿记录链接里缺少 authkey，请重新打开游戏内的「祈愿记录」页")
 	}
-	for _, key := range []string{"page", "size", "gacha_type", "end_id"} {
+	// begin_id 是网页缓存里滚动到底部时留下的游标；带着它会返回以该游标为界的
+	// 旧页（其他频段甚至返回空列表），所以和分页参数一起去掉。
+	for _, key := range []string{"page", "size", "gacha_type", "end_id", "begin_id"} {
 		q.Del(key)
 	}
 	domain := genshinAPICN

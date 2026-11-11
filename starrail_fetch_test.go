@@ -84,7 +84,7 @@ func TestFindStarRailLogURL(t *testing.T) {
 }
 
 func TestParseStarRailLogURL(t *testing.T) {
-	raw := "https://webstatic.mihoyo.com/hkrpg/event/index.html?authkey=abc+def=ghi&game_biz=hkrpg_cn&lang=zh-cn&page=2&size=20&gacha_type=11&end_id=123"
+	raw := "https://webstatic.mihoyo.com/hkrpg/event/index.html?authkey=abc+def=ghi&game_biz=hkrpg_cn&lang=zh-cn&page=2&size=20&gacha_type=11&end_id=123&begin_id=456"
 	api, err := parseStarRailLogURL(raw)
 	if err != nil {
 		t.Fatal(err)
@@ -99,7 +99,7 @@ func TestParseStarRailLogURL(t *testing.T) {
 	if q.Get("authkey") != "abc+def=ghi" {
 		t.Errorf("authkey 变成 %q", q.Get("authkey"))
 	}
-	for _, key := range []string{"page", "size", "gacha_type", "end_id"} {
+	for _, key := range []string{"page", "size", "gacha_type", "end_id", "begin_id"} {
 		if q.Has(key) {
 			t.Errorf("分页参数 %q 应被移除", key)
 		}
@@ -239,6 +239,61 @@ func TestFetchStarRailAll(t *testing.T) {
 	}
 	if !sawLd {
 		t.Error("没有请求联动跃迁")
+	}
+}
+
+func TestStarRailFetchChannelBackfillsLateRecord(t *testing.T) {
+	var mu sync.Mutex
+	var pages []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		page, endID := q.Get("page"), q.Get("end_id")
+		mu.Lock()
+		pages = append(pages, page+"/"+endID)
+		mu.Unlock()
+		var list []apiGachaRecord
+		switch page + "/" + endID {
+		case "1/0":
+			list = []apiGachaRecord{
+				{UID: "42", gachaRecord: gachaRecord{ID: "1004"}},
+				{UID: "42", gachaRecord: gachaRecord{ID: "1003"}},
+			}
+		case "2/1003":
+			list = []apiGachaRecord{
+				// 本地最新一条（1003）之后才写入服务器的旧记录。
+				{UID: "42", gachaRecord: gachaRecord{ID: "1002"}},
+				{UID: "42", gachaRecord: gachaRecord{ID: "1001"}},
+			}
+		case "3/1001":
+			// 空页，结束。
+		default:
+			t.Errorf("意外的分页请求 %s/%s", page, endID)
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"retcode": 0,
+			"message": "OK",
+			"data":    map[string]any{"list": list},
+		})
+	}))
+	defer server.Close()
+
+	oldClient, oldSleep := starRailHTTPClient, starRailSleep
+	starRailHTTPClient, starRailSleep = server.Client(), func(time.Duration) {}
+	defer func() { starRailHTTPClient, starRailSleep = oldClient, oldSleep }()
+
+	api := &starRailAPIURL{domain: server.URL, query: "authkey=test", lang: "zh-cn"}
+	localIDs := map[string]bool{"1001": true, "1003": true}
+	recs, err := starRailFetchChannel(api, "11", "角色活动跃迁", localIDs, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, rec := range recs {
+		got = append(got, rec.ID)
+	}
+	want := []string{"1004", "1003", "1002", "1001"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("记录 %v，期望 %v", got, want)
 	}
 }
 

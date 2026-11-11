@@ -98,7 +98,7 @@ func TestFindGenshinLogURL(t *testing.T) {
 }
 
 func TestParseGenshinLogURL(t *testing.T) {
-	raw := "https://webstatic.mihoyo.com/hk4e/event/e20190909gacha/index.html?authkey=abc+def=ghi&game_biz=hk4e_cn&lang=zh-cn&page=2&size=20&gacha_type=301&end_id=123"
+	raw := "https://webstatic.mihoyo.com/hk4e/event/e20190909gacha/index.html?authkey=abc+def=ghi&game_biz=hk4e_cn&lang=zh-cn&page=2&size=20&gacha_type=301&end_id=123&begin_id=456"
 	api, err := parseGenshinLogURL(raw)
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +113,7 @@ func TestParseGenshinLogURL(t *testing.T) {
 	if q.Get("authkey") != "abc+def=ghi" {
 		t.Errorf("authkey 变成 %q", q.Get("authkey"))
 	}
-	for _, key := range []string{"page", "size", "gacha_type", "end_id"} {
+	for _, key := range []string{"page", "size", "gacha_type", "end_id", "begin_id"} {
 		if q.Has(key) {
 			t.Errorf("分页参数 %q 应被移除", key)
 		}

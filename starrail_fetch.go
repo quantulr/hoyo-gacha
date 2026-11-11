@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
 	"net/http"
 	"net/url"
 	"os"
@@ -190,7 +189,9 @@ func parseStarRailLogURL(raw string) (*starRailAPIURL, error) {
 	if q.Get("authkey") == "" {
 		return nil, errors.New("跃迁记录链接里缺少 authkey，请重新打开游戏内的「跃迁记录」页")
 	}
-	for _, key := range []string{"page", "size", "gacha_type", "end_id"} {
+	// begin_id 是网页缓存里滚动到底部时留下的游标；带着它会返回以该游标为界的
+	// 旧页（其他频段甚至返回空列表），所以和分页参数一起去掉。
+	for _, key := range []string{"page", "size", "gacha_type", "end_id", "begin_id"} {
 		q.Del(key)
 	}
 	domain := starRailAPICN
@@ -269,12 +270,12 @@ func fetchStarRailAll(root string, api *starRailAPIURL, progress func(string)) (
 	if local != nil && local.RegionTimeZone != 0 {
 		targetZone = local.RegionTimeZone
 	}
-	latest := gachaLatestIDs(local)
+	localIDs := gachaLocalIDs(local)
 
 	fetched := &gachaExport{UID: uid, Lang: api.lang, RegionTimeZone: targetZone}
 	for _, typ := range starRailChannelOrder {
 		name := starRailChannelNames[typ]
-		recs, err := starRailFetchChannel(api, typ, name, latest[typ], progress)
+		recs, err := starRailFetchChannel(api, typ, name, localIDs[typ], progress)
 		if err != nil {
 			return nil, err
 		}
@@ -297,10 +298,14 @@ func fetchStarRailAll(root string, api *starRailAPIURL, progress func(string)) (
 	return &gachaRefreshResult{UID: uid, Added: added, Total: total}, nil
 }
 
-// starRailFetchChannel 按 end_id 翻页抓取一个跃迁频段。latest 是本地最新的
-// 记录 id，碰到它就说明后面的记录本地都有了。
-func starRailFetchChannel(api *starRailAPIURL, typ, name string, latest *big.Int,
+// starRailFetchChannel 按 end_id 翻页抓取一个跃迁频段。localIDs 是本地已有的
+// 记录 id，整页都已在本地时说明后面的记录本地都有，可以停止。这样即使有记录
+// 在本地最新一条之后才写入服务器（晚到的旧记录），也能补回来。
+func starRailFetchChannel(api *starRailAPIURL, typ, name string, localIDs map[string]bool,
 	progress func(string)) ([]gachaRecord, error) {
+	if progress == nil {
+		progress = func(string) {}
+	}
 	var records []gachaRecord
 	page := 1
 	endID := "0"
@@ -313,18 +318,18 @@ func starRailFetchChannel(api *starRailAPIURL, typ, name string, latest *big.Int
 		if len(data.List) == 0 {
 			break
 		}
-		hitLatest := false
+		pageHasNew := false
 		for _, item := range data.List {
 			rec := item.gachaRecord
 			if rec.Count == "" {
 				rec.Count = "1"
 			}
 			records = append(records, rec)
-			if latest != nil && gachaIDEquals(rec.ID, latest) {
-				hitLatest = true
+			if key, ok := gachaIDKey(rec.ID); !ok || !localIDs[key] {
+				pageHasNew = true
 			}
 		}
-		if hitLatest {
+		if !pageHasNew {
 			break
 		}
 		endID = data.List[len(data.List)-1].ID

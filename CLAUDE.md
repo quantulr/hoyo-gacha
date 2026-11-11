@@ -44,7 +44,7 @@ go build -o /tmp/hoyo-gacha-check .  # 仅编译检查；用 -o 指到临时目�
 - `accounts.go`：账号切换。`gachaAccounts` 扫描 `data/<game>/gacha-list-*.json` 得到 UID 列表；`switchGachaAccount` 用 `loadGachaAccount` 读入指定账号后交给 `game.apply`，读入成功才会更新 `config.toml` 的 `current`。标题栏的 UID 菜单由 `accountMenu` 绘制，`game.data` 提供当前已读入的数据。
 - `games.go`：`game` 描述结构与注册表。每个游戏文件提供元数据、`gachaSpec`、`load`/`apply`、页面 `body`、频道颜色，可选 `refresh`/`fetching`/`annotate`；`game.stars` 决定等级用星级还是 S/A/B 展示。`games` 在 `init()` 中赋值，避免“游戏变量 → load → gameByID → games”的初始化循环。
 - `gacha.go`：共享数据模型与统计。`gachaRecord` 同时解析对象记录和原神紧凑数组；`gachaExport` 对应 `gacha-list-<uid>.json`；`newGachaData` 计算保底、等级和出金历史，并把记录翻成最新在前，同时按原始 `RankType` 累计 `RankCounts` 供星级统计卡片使用。`gachaSpecFor` 从游戏注册表取等级与保底规则；`gachaSpec.ranks` 按频道覆盖等级映射。`loadGachaGame` 在没有任何导出文件时返回 `nil, nil`，读入成功后用文件 UID 校正 `config.toml` 的 `[games.<game>] current`（保留其他键）；没有配置时回退读取旧版 `data/<game>/config.json` 并完成迁移。歪卡标注由各游戏的 `annotate` 按时间顺序用 `markBannerPull` 写入 `pullRecord.BannerKnown`/`Lost`/`Guaranteed` 并标记 `channelStats.LostTracked`；`channelStats.countLost` 只汇总小保底（跳过 `Guaranteed`），同时把连续歪卡序号写入 `pullRecord.LostStreak`；`channelStats.LostRate` 供「各卡池歪卡率」使用，`gachaData.LostStats` 与 `LostRate` 供总览卡片使用。
-- `fetch.go`：共享抓取基础设施。API 响应结构、`gachaLatestIDs`/`gachaIDEquals`、时区换算、`loadGachaLocal`、`mergeGachaExport`（按 id 严格并集）、原子写 `saveGachaExport(root, game, exp)`、`sanitizeURLError`。
+- `fetch.go`：共享抓取基础设施。API 响应结构、`gachaLatestIDs`/`gachaIDEquals`/`gachaLocalIDs`、时区换算、`loadGachaLocal`、`mergeGachaExport`（按 id 严格并集）、原子写 `saveGachaExport(root, game, exp)`、`sanitizeURLError`。
 - 每个游戏两份文件：`<game>.go`（描述符与 UI）和 `<game>_fetch.go`（日志/缓存定位、链接解析、分页抓取）。ZZZ、星穹铁道和原神的卡池歪标记分别在 `zzz_banners.go`、`starrail_banners.go`、`genshin_banners.go`，对应的 `assets/*-banners.json` 通过 `go:embed` 内嵌；卡池时间按 UTC+8。原神卡池只覆盖角色/武器活动祈愿，集录祈愿和千星奇域颂愿暂不判定。
 - UI 测试用 `ui.NewTester(a.view, 960, 680)` 配合 `HasText`/`Click`，不需要真实窗口。
 
@@ -53,9 +53,9 @@ go build -o /tmp/hoyo-gacha-check .  # 仅编译检查；用 -o 指到临时目�
 每个游戏的 `refresh<Game>` 先进入刷新状态，然后在 goroutine 中调用 `refresh<Game>Data(progress)`：
 
 1. `find<Game>LogURL` 在游戏日志/网页缓存中找最后一条含 authkey 的链接；
-2. `parse<Game>LogURL` 删除分页参数、保留 authkey 等公共参数，并按 host 选择国服/国际服域名；
+2. `parse<Game>LogURL` 删除 `page`/`size`/`gacha_type`/`end_id`/`begin_id` 等分页参数，保留 authkey 等公共参数，并按 host 选择国服/国际服域名；`begin_id` 是网页里的滚动游标，带给接口会返回以它为准的旧页，其他频段甚至返回空列表；
 3. `<game>FetchUID` 用第一页确认 UID 和服务器时区；原神普通祈愿全空时继续探测颂愿接口；
-4. `fetch<Game>All` 读取本地文件，按频道翻页；命中 `gachaLatestIDs` 返回的本地最新 id 时提前停止；
+4. `fetch<Game>All` 读取本地文件，按频道翻页；星穹铁道在整页记录都已在本地时提前停止（顺带补回晚于本地最新一条才写入服务器的旧记录），原神与绝区零命中 `gachaLatestIDs` 返回的本地最新 id 时提前停止；
 5. `mergeGachaExport` 按 id 合并（不会丢弃本地独有的频道），`saveGachaExport` 原子写回并更新 `config.toml` 的 `[games.<game>] current`。
 
 分页约定：每页 20 条、`end_id` 游标、网络错误重试 5 次（间隔 5s）、每页 300ms、每 10 页额外 1s。进度通过 `progress` 回调更新；UI 线程更新一律走 `a.publish`。原神千星奇域颂愿走独立的 `/gacha_info/api/getBeyondGachaLog`，活动颂愿统一用 `gacha_type=2000` 查询，响应里的 `op_gacha_type` 保留到记录中；英文接口的语言参数需要从 `en` 改成 `en-us`。
