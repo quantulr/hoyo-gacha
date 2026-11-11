@@ -18,8 +18,8 @@ func TestZZZBannerData(t *testing.T) {
 	if set.Source == "" || set.Timezone != "UTC+8" || set.Updated == "" {
 		t.Errorf("元数据 %+v", set)
 	}
-	if len(set.Banners) != 142 {
-		t.Fatalf("卡池 %d 个，期望 142", len(set.Banners))
+	if len(set.Banners) != 146 {
+		t.Fatalf("卡池 %d 个，期望 146", len(set.Banners))
 	}
 
 	versionRE := regexp.MustCompile(`^\d+\.\d+$`)
@@ -50,8 +50,8 @@ func TestZZZBannerData(t *testing.T) {
 		}
 		prev = start
 	}
-	if channels["character"] != 71 || channels["engine"] != 71 {
-		t.Errorf("频道统计 %v，期望各 71 个", channels)
+	if channels["character"] != 73 || channels["engine"] != 73 {
+		t.Errorf("频道统计 %v，期望各 73 个", channels)
 	}
 	for major, maxMinor := range map[int]int{1: 7, 2: 8, 3: 3} {
 		for minor := 0; minor <= maxMinor; minor++ {
@@ -78,6 +78,10 @@ func TestZZZBannerSamples(t *testing.T) {
 		{"1.4", "character", "悠真", "全版本", "2024-12-18 11:00:00", "2025-01-21 14:59:59"},
 		{"3.3", "character", "菲欧妮", "上半", "2026-10-21 11:00:00", "2026-11-10 11:59:59"},
 		{"3.3", "engine", "涅槃初翎", "上半", "2026-10-21 11:00:00", "2026-11-10 11:59:59"},
+		{"3.3", "character", "赛维里安", "下半", "2026-11-11 12:00:00", "2026-12-01 14:59:59"},
+		{"3.3", "character", "诺姆", "下半", "2026-11-11 12:00:00", "2026-12-01 14:59:59"},
+		{"3.3", "engine", "禁罪囚笼", "下半", "2026-11-11 12:00:00", "2026-12-01 14:59:59"},
+		{"3.3", "engine", "首席跟班", "下半", "2026-11-11 12:00:00", "2026-12-01 14:59:59"},
 	}
 	for _, tt := range tests {
 		b := findZZZBanner(set.Banners, tt.version, tt.channel, tt.up)
@@ -125,6 +129,16 @@ func TestZZZBannersAt(t *testing.T) {
 	got := zzzBannersAt(set.Banners, "character", at("2024-07-24 12:30:00"))
 	if len(got) != 1 || !hasUP(got, "朱鸢") || hasUP(got, "艾莲") {
 		t.Errorf("下半卡池 %+v", got)
+	}
+
+	// 3.3 下半 12:00 开放，双卡池同时进行。
+	got = zzzBannersAt(set.Banners, "character", at("2026-11-11 12:30:00"))
+	if len(got) != 2 || !hasUP(got, "赛维里安") || !hasUP(got, "诺姆") || hasUP(got, "菲欧妮") {
+		t.Errorf("3.3 下半角色卡池 %+v", got)
+	}
+	got = zzzBannersAt(set.Banners, "engine", at("2026-11-11 12:30:00"))
+	if len(got) != 2 || !hasUP(got, "禁罪囚笼") || !hasUP(got, "首席跟班") || hasUP(got, "涅槃初翎") {
+		t.Errorf("3.3 下半音擎卡池 %+v", got)
 	}
 
 	// 跨版本空档超过提前开服容差时，没有开放中的卡池。
