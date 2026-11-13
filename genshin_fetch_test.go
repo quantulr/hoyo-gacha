@@ -97,6 +97,69 @@ func TestFindGenshinLogURL(t *testing.T) {
 	}
 }
 
+func TestFindGenshinLogURLFallsBackToLogWhenCacheLocked(t *testing.T) {
+	dir := t.TempDir()
+	gameDir := filepath.Join(dir, "Genshin Impact")
+	dataDir := filepath.Join(gameDir, "GenshinImpact_Data")
+	oldURL := "https://webstatic.mihoyo.com/hk4e/event/e20190909gacha/index.html?auth_appid=webview_gacha&authkey=OLD&game_biz=hk4e_cn&timestamp=100"
+	logURL := "https://webstatic.mihoyo.com/hk4e/event/e20190909gacha/index.html?auth_appid=webview_gacha&authkey=LOG&game_biz=hk4e_cn&timestamp=200"
+
+	oldCache := writeGenshinCache(t, dataDir, "2.55.0.0", "junk\x00"+oldURL+"\x00junk")
+	oldTime := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(oldCache, oldTime, oldTime); err != nil {
+		t.Fatal(err)
+	}
+	// 最新的 data_2 建成目录，模拟游戏独占缓存导致读取失败。
+	locked := filepath.Join(dataDir, "webCaches", "2.57.0.0", "Cache", "Cache_Data", "data_2")
+	if err := os.MkdirAll(locked, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	logPath := filepath.Join(dir, "output_log.txt")
+	logText := "Loading player data from " + filepath.ToSlash(dataDir) + "/data.unity3d\r\n" + logURL + "\r\n"
+	if err := os.WriteFile(logPath, []byte(logText), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := findGenshinLogURL([]genshinLogFile{{path: logPath}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != logURL {
+		t.Errorf("缓存被占用时应使用日志里的链接，得到 %q", got)
+	}
+
+	// 日志里没有链接时，不应回退到旧版本目录里已经过期的链接。
+	logText = "Loading player data from " + filepath.ToSlash(dataDir) + "/data.unity3d\r\n"
+	if err := os.WriteFile(logPath, []byte(logText), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := findGenshinLogURL([]genshinLogFile{{path: logPath}}); err == nil || !strings.Contains(err.Error(), "占用") {
+		t.Errorf("缓存被占用且日志没有链接时错误 = %v，链接 = %q", err, got)
+	}
+}
+
+func TestFindGenshinLogURLPrefersNewerCacheURL(t *testing.T) {
+	dir := t.TempDir()
+	gameDir := filepath.Join(dir, "Genshin Impact")
+	dataDir := filepath.Join(gameDir, "GenshinImpact_Data")
+	cacheURL := "https://webstatic.mihoyo.com/hk4e/event/e20190909gacha/index.html?auth_appid=webview_gacha&authkey=CACHE&game_biz=hk4e_cn&timestamp=300"
+	logURL := "https://webstatic.mihoyo.com/hk4e/event/e20190909gacha/index.html?auth_appid=webview_gacha&authkey=LOG&game_biz=hk4e_cn&timestamp=200"
+	writeGenshinCache(t, dataDir, "2.57.0.0", "junk\x00"+cacheURL+"\x00junk")
+
+	logPath := filepath.Join(dir, "output_log.txt")
+	logText := "Loading player data from " + filepath.ToSlash(dataDir) + "/data.unity3d\r\n" + logURL + "\r\n"
+	if err := os.WriteFile(logPath, []byte(logText), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := findGenshinLogURL([]genshinLogFile{{path: logPath}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != cacheURL {
+		t.Errorf("应优先使用缓存里较新的链接，得到 %q", got)
+	}
+}
+
 func TestParseGenshinLogURL(t *testing.T) {
 	raw := "https://webstatic.mihoyo.com/hk4e/event/e20190909gacha/index.html?authkey=abc+def=ghi&game_biz=hk4e_cn&lang=zh-cn&page=2&size=20&gacha_type=301&end_id=123&begin_id=456"
 	api, err := parseGenshinLogURL(raw)

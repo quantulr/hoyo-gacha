@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -68,6 +69,8 @@ var (
 	genshinURLRE = regexp.MustCompile(`https://[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]+`)
 	// authkey 里未编码的等号会让参数解析截断，需要先转义。
 	genshinAuthkeyRE = regexp.MustCompile(`authkey=([^&]+)`)
+	// 链接里的生成时间戳，用于在缓存和日志之间选较新的一条。
+	genshinTimestampRE = regexp.MustCompile(`[?&]timestamp=(\d+)`)
 )
 
 // genshinAPIURL 是从缓存链接解析出的请求信息。
@@ -121,17 +124,20 @@ func genshinLogFiles() []genshinLogFile {
 }
 
 // findGenshinLogURL 从普通客户端日志里的安装路径找到网页缓存，或直接从
-// 云游戏日志里取出最后一条含 authkey 的祈愿记录页链接。
+// 云游戏日志里取出最后一条含 authkey 的祈愿记录页链接。新版游戏会独占
+// 缓存文件，读不到时退回日志里记录的链接。
 func findGenshinLogURL(files []genshinLogFile) (string, error) {
+	locked := false
 	for _, file := range files {
 		data, err := os.ReadFile(file.path)
 		if err != nil {
 			continue
 		}
 		text := string(data)
+		logRaw := genshinCacheURL(text)
 		if file.direct {
-			if raw := genshinCacheURL(text); raw != "" {
-				return raw, nil
+			if logRaw != "" {
+				return logRaw, nil
 			}
 			continue
 		}
@@ -139,16 +145,28 @@ func findGenshinLogURL(files []genshinLogFile) (string, error) {
 		if gamePath == "" {
 			continue
 		}
-		if raw, err := findGenshinCacheURL(gamePath); err == nil && raw != "" {
-			return raw, nil
+		cacheRaw, cacheLocked, _ := findGenshinCacheURL(gamePath)
+		if cacheLocked {
+			locked = true
 		}
+		switch {
+		case cacheRaw != "" && (logRaw == "" || genshinURLTime(cacheRaw) >= genshinURLTime(logRaw)):
+			return cacheRaw, nil
+		case logRaw != "":
+			// 缓存被游戏占用时，日志里通常还留着最近一次打开祈愿记录页的链接。
+			return logRaw, nil
+		}
+	}
+	if locked {
+		return "", errors.New("祈愿/颂愿缓存被游戏占用，无法读取；请先在游戏内打开「祈愿记录」或「颂愿」页，然后退出游戏再刷新")
 	}
 	return "", errors.New("没有在游戏日志或缓存里找到祈愿/颂愿记录链接，请先在游戏内打开「祈愿记录」或「颂愿」页再刷新")
 }
 
 // findGenshinCacheURL 按修改时间从新到旧读取 data_2 缓存文件，找不到时继续
-// 试旧版本目录。
-func findGenshinCacheURL(gamePath string) (string, error) {
+// 试旧版本目录。locked 表示有更新的缓存文件读不到（通常是游戏运行中独占），
+// 此时不再使用旧版本目录里的链接，因为其中的 authkey 通常已经过期。
+func findGenshinCacheURL(gamePath string) (raw string, locked bool, err error) {
 	root := filepath.FromSlash(strings.ReplaceAll(gamePath, `\`, "/"))
 	var files []string
 	for _, pattern := range []string{
@@ -159,7 +177,7 @@ func findGenshinCacheURL(gamePath string) (string, error) {
 		files = append(files, matches...)
 	}
 	if len(files) == 0 {
-		return "", errors.New("没有找到游戏的网页缓存")
+		return "", false, errors.New("没有找到游戏的网页缓存")
 	}
 	sort.Slice(files, func(i, j int) bool {
 		si, errI := os.Stat(files[i])
@@ -172,13 +190,33 @@ func findGenshinCacheURL(gamePath string) (string, error) {
 	for _, path := range files {
 		data, err := os.ReadFile(path)
 		if err != nil {
+			locked = true
 			continue
 		}
 		if raw := genshinCacheURL(string(data)); raw != "" {
-			return raw, nil
+			if locked {
+				return "", true, nil
+			}
+			return raw, false, nil
 		}
 	}
-	return "", errors.New("没有在游戏缓存里找到祈愿/颂愿记录链接")
+	if locked {
+		return "", true, nil
+	}
+	return "", false, errors.New("没有在游戏缓存里找到祈愿/颂愿记录链接")
+}
+
+// genshinURLTime 返回链接里的 timestamp 参数（秒），缺失时返回 0。
+func genshinURLTime(raw string) int64 {
+	m := genshinTimestampRE.FindStringSubmatch(raw)
+	if len(m) != 2 {
+		return 0
+	}
+	n, err := strconv.ParseInt(m[1], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 // genshinCacheURL 返回缓存文本里最后一条祈愿记录页链接。
