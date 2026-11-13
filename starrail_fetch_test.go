@@ -83,6 +83,69 @@ func TestFindStarRailLogURL(t *testing.T) {
 	}
 }
 
+func TestFindStarRailLogURLFallsBackToLogWhenCacheLocked(t *testing.T) {
+	dir := t.TempDir()
+	gameDir := filepath.Join(dir, "Star Rail Game")
+	gamePath := filepath.ToSlash(filepath.Join(gameDir, "StarRail_Data"))
+	oldURL := "https://webstatic.mihoyo.com/hkrpg/event/x.html?auth_appid=webview_gacha&authkey=OLD&game_biz=hkrpg_cn&timestamp=100"
+	logURL := "https://webstatic.mihoyo.com/hkrpg/event/x.html?auth_appid=webview_gacha&authkey=LOG&game_biz=hkrpg_cn&timestamp=200"
+
+	oldCache := writeStarRailCache(t, gameDir, "2.53.0.0", "junk\x00"+oldURL+"\x00junk")
+	oldTime := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(oldCache, oldTime, oldTime); err != nil {
+		t.Fatal(err)
+	}
+	// 最新的 data_2 建成目录，模拟游戏独占缓存导致读取失败。
+	locked := filepath.Join(gameDir, "StarRail_Data", "webCaches", "2.54.0.0", "Cache", "Cache_Data", "data_2")
+	if err := os.MkdirAll(locked, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	logPath := filepath.Join(dir, "Player.log")
+	logText := "Loading player data from " + gamePath + "/data.unity3d\r\n" + logURL + "\r\n"
+	if err := os.WriteFile(logPath, []byte(logText), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := findStarRailLogURL([]string{logPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != logURL {
+		t.Errorf("缓存被占用时应使用日志里的链接，得到 %q", got)
+	}
+
+	// 日志里没有链接时，不应回退到旧版本目录里已经过期的链接。
+	logText = "Loading player data from " + gamePath + "/data.unity3d\r\n"
+	if err := os.WriteFile(logPath, []byte(logText), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := findStarRailLogURL([]string{logPath}); err == nil || !strings.Contains(err.Error(), "占用") {
+		t.Errorf("缓存被占用且日志没有链接时错误 = %v，链接 = %q", err, got)
+	}
+}
+
+func TestFindStarRailLogURLPrefersNewerCacheURL(t *testing.T) {
+	dir := t.TempDir()
+	gameDir := filepath.Join(dir, "Star Rail Game")
+	gamePath := filepath.ToSlash(filepath.Join(gameDir, "StarRail_Data"))
+	cacheURL := "https://webstatic.mihoyo.com/hkrpg/event/x.html?auth_appid=webview_gacha&authkey=CACHE&game_biz=hkrpg_cn&timestamp=300"
+	logURL := "https://webstatic.mihoyo.com/hkrpg/event/x.html?auth_appid=webview_gacha&authkey=LOG&game_biz=hkrpg_cn&timestamp=200"
+	writeStarRailCache(t, gameDir, "2.54.0.0", "junk\x00"+cacheURL+"\x00junk")
+
+	logPath := filepath.Join(dir, "Player.log")
+	logText := "Loading player data from " + gamePath + "/data.unity3d\r\n" + logURL + "\r\n"
+	if err := os.WriteFile(logPath, []byte(logText), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := findStarRailLogURL([]string{logPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != cacheURL {
+		t.Errorf("应优先使用缓存里较新的链接，得到 %q", got)
+	}
+}
+
 func TestParseStarRailLogURL(t *testing.T) {
 	raw := "https://webstatic.mihoyo.com/hkrpg/event/index.html?authkey=abc+def=ghi&game_biz=hkrpg_cn&lang=zh-cn&page=2&size=20&gacha_type=11&end_id=123&begin_id=456"
 	api, err := parseStarRailLogURL(raw)

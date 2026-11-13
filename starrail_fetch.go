@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -57,6 +58,8 @@ var (
 	starRailURLRE = regexp.MustCompile(`https://[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]+`)
 	// authkey 里未编码的等号会让参数解析截断，需要先转义。
 	starRailAuthkeyRE = regexp.MustCompile(`authkey=([^&]+)`)
+	// 链接里的生成时间戳，用于在缓存和日志之间选较新的一条。
+	starRailTimestampRE = regexp.MustCompile(`[?&]timestamp=(\d+)`)
 )
 
 // starRailAPIURL 是从缓存链接解析出的请求信息。
@@ -101,26 +104,43 @@ func starRailLogPaths() []string {
 }
 
 // findStarRailLogURL 从玩家日志里的安装路径找到游戏的网页缓存，再取出最后一条
-// 含 authkey 的跃迁记录页链接。
+// 含 authkey 的跃迁记录页链接。新版游戏会独占缓存文件，读不到时退回日志里
+// 记录的链接。
 func findStarRailLogURL(paths []string) (string, error) {
+	locked := false
 	for _, path := range paths {
 		data, err := os.ReadFile(path)
 		if err != nil {
 			continue
 		}
-		gamePath := starRailGamePathRE.FindString(string(data))
+		text := string(data)
+		gamePath := starRailGamePathRE.FindString(text)
 		if gamePath == "" {
 			continue
 		}
-		if raw, err := findStarRailCacheURL(gamePath); err == nil && raw != "" {
-			return raw, nil
+		cacheRaw, cacheLocked, _ := findStarRailCacheURL(gamePath)
+		if cacheLocked {
+			locked = true
 		}
+		logRaw := starRailCacheURL(text)
+		switch {
+		case cacheRaw != "" && (logRaw == "" || starRailURLTime(cacheRaw) >= starRailURLTime(logRaw)):
+			return cacheRaw, nil
+		case logRaw != "":
+			// 缓存被游戏占用时，日志里通常还留着最近一次打开跃迁记录页的链接。
+			return logRaw, nil
+		}
+	}
+	if locked {
+		return "", errors.New("跃迁记录缓存被游戏占用，无法读取；请先在游戏内打开「跃迁记录」，然后退出游戏再刷新")
 	}
 	return "", errors.New("没有在游戏日志或缓存里找到跃迁记录链接，请先在游戏内打开「跃迁记录」页再刷新")
 }
 
 // findStarRailCacheURL 读取最新的 data_2 缓存文件，找不到时继续试旧版本目录。
-func findStarRailCacheURL(gamePath string) (string, error) {
+// locked 表示有更新的缓存文件读不到（通常是游戏运行中独占），此时不再使用
+// 旧版本目录里的链接，因为其中的 authkey 通常已经过期。
+func findStarRailCacheURL(gamePath string) (raw string, locked bool, err error) {
 	root := filepath.FromSlash(strings.ReplaceAll(gamePath, `\`, "/"))
 	var files []string
 	for _, pattern := range []string{
@@ -131,7 +151,7 @@ func findStarRailCacheURL(gamePath string) (string, error) {
 		files = append(files, matches...)
 	}
 	if len(files) == 0 {
-		return "", errors.New("没有找到游戏的网页缓存")
+		return "", false, errors.New("没有找到游戏的网页缓存")
 	}
 	sort.Slice(files, func(i, j int) bool {
 		si, errI := os.Stat(files[i])
@@ -144,13 +164,33 @@ func findStarRailCacheURL(gamePath string) (string, error) {
 	for _, path := range files {
 		data, err := os.ReadFile(path)
 		if err != nil {
+			locked = true
 			continue
 		}
 		if raw := starRailCacheURL(string(data)); raw != "" {
-			return raw, nil
+			if locked {
+				return "", true, nil
+			}
+			return raw, false, nil
 		}
 	}
-	return "", errors.New("没有在游戏缓存里找到跃迁记录链接")
+	if locked {
+		return "", true, nil
+	}
+	return "", false, errors.New("没有在游戏缓存里找到跃迁记录链接")
+}
+
+// starRailURLTime 返回链接里的 timestamp 参数（秒），缺失时返回 0。
+func starRailURLTime(raw string) int64 {
+	m := starRailTimestampRE.FindStringSubmatch(raw)
+	if len(m) != 2 {
+		return 0
+	}
+	n, err := strconv.ParseInt(m[1], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 // starRailCacheURL 返回缓存文本里最后一条跃迁记录页链接。
