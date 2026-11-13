@@ -31,8 +31,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: Windows amd64, platform: windows/amd64 }
-          - { name: Windows arm64, platform: windows/arm64 }
+          # 同一矩阵行里顺序构建两个架构，-upload 才会生成一份覆盖全部
+          # 产物的 SHA256SUMS；拆成并行行会在上传时同名冲突。
+          - { name: Windows, platform: "windows/amd64,windows/arm64" }
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
