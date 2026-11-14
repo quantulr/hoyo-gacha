@@ -76,10 +76,13 @@ func (a *app) accountMenu(c *ui.Context, pal *palette, g *game, d *gachaData) {
 	switch {
 	case *open:
 		bg, fg = pal.rowSelected, pal.text
+	case trigger.Pressed():
+		bg, fg = pal.rowPressed, pal.text
 	case trigger.Hovered():
 		bg, fg = pal.rowHover, pal.text
 	}
-	trigger.Background(bg)
+	trigger.Background(trigger.AnimateColor("bg", bg, colorMotion))
+	trigger = pressScale(trigger, trigger.Pressed(), 0.97)
 	trigger.Children(func() {
 		ui.Text(c, "UID "+d.UID).FontSize(12).FontWeight(500).TextColor(fg).SingleLine()
 		alignIconText(ui.Icon(c, chevronDownIcon).Size(10, 10).TextColor(fg).Shrink(0))

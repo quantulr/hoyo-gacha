@@ -1,56 +1,76 @@
 package main
 
-import "github.com/egoist/mygo/ui"
+import (
+	"time"
+
+	"github.com/egoist/mygo/ui"
+)
 
 // palette 是参考 Kero 的配色，按浅色和深色外观区分。
 type palette struct {
-	dark         bool
-	text         ui.Color
-	textMuted    ui.Color
-	textFaint    ui.Color
-	rowHover     ui.Color
-	rowSelected  ui.Color
-	card         ui.Color
-	chip         ui.Color
-	control      ui.Color
-	controlHover ui.Color
-	divider      ui.Color
-	accent       ui.Color
-	attention    ui.Color
-	danger       ui.Color
+	dark               bool
+	text               ui.Color
+	textMuted          ui.Color
+	textFaint          ui.Color
+	rowHover           ui.Color
+	rowPressed         ui.Color
+	rowSelected        ui.Color
+	rowSelectedPressed ui.Color
+	card               ui.Color
+	chip               ui.Color
+	control            ui.Color
+	controlHover       ui.Color
+	divider            ui.Color
+	accent             ui.Color
+	attention          ui.Color
+	danger             ui.Color
 }
 
+// 全应用共用的动效。颜色用短曲线，位置用可打断的弹簧；系统开启
+// “减少动态效果”时，MyGo 会直接落到目标值。
+var (
+	colorMotion   = ui.Animation{Duration: 140 * time.Millisecond, Ease: ui.EaseOut}
+	pressSpring   = ui.Animation{Spring: ui.SpringOptions{Duration: 180 * time.Millisecond}}
+	pageSpring    = ui.Animation{Spring: ui.SpringOptions{Duration: 200 * time.Millisecond}}
+	overlaySpring = ui.Animation{Spring: ui.SpringOptions{Duration: 240 * time.Millisecond}}
+	barSpring     = ui.Animation{Spring: ui.SpringOptions{Duration: 320 * time.Millisecond}}
+)
+
 var lightPalette = palette{
-	text:         ui.Hex("#1d1d1f"),
-	textMuted:    ui.Hex("#6e6e78"),
-	textFaint:    ui.Hex("#a3a3ad"),
-	rowHover:     ui.RGBA(0, 0, 0, 0.04),
-	rowSelected:  ui.Hex("#ffffff"),
-	card:         ui.Hex("#ffffff"),
-	chip:         ui.RGBA(0, 0, 0, 0.045),
-	control:      ui.Hex("#ffffff"),
-	controlHover: ui.Hex("#f7f7f9"),
-	divider:      ui.RGBA(0, 0, 0, 0.06),
-	accent:       ui.Hex("#3b6cf6"),
-	attention:    ui.Hex("#c27b0f"),
-	danger:       ui.Hex("#d93a35"),
+	text:               ui.Hex("#1d1d1f"),
+	textMuted:          ui.Hex("#6e6e78"),
+	textFaint:          ui.Hex("#a3a3ad"),
+	rowHover:           ui.RGBA(0, 0, 0, 0.04),
+	rowPressed:         ui.RGBA(0, 0, 0, 0.07),
+	rowSelected:        ui.Hex("#ffffff"),
+	rowSelectedPressed: ui.Hex("#f2f2f5"),
+	card:               ui.Hex("#ffffff"),
+	chip:               ui.RGBA(0, 0, 0, 0.045),
+	control:            ui.Hex("#ffffff"),
+	controlHover:       ui.Hex("#f7f7f9"),
+	divider:            ui.RGBA(0, 0, 0, 0.06),
+	accent:             ui.Hex("#007aff"),
+	attention:          ui.Hex("#c27b0f"),
+	danger:             ui.Hex("#d93a35"),
 }
 
 var darkPalette = palette{
-	dark:         true,
-	text:         ui.Hex("#ececf0"),
-	textMuted:    ui.Hex("#a9a9b4"),
-	textFaint:    ui.Hex("#83838f"),
-	rowHover:     ui.RGBA(255, 255, 255, 0.05),
-	rowSelected:  ui.RGBA(255, 255, 255, 0.10),
-	card:         ui.Hex("#232328"),
-	chip:         ui.RGBA(255, 255, 255, 0.07),
-	control:      ui.Hex("#404047"),
-	controlHover: ui.Hex("#4a4a52"),
-	divider:      ui.RGBA(255, 255, 255, 0.07),
-	accent:       ui.Hex("#6b93ff"),
-	attention:    ui.Hex("#f0a33a"),
-	danger:       ui.Hex("#ff6961"),
+	dark:               true,
+	text:               ui.Hex("#ececf0"),
+	textMuted:          ui.Hex("#a9a9b4"),
+	textFaint:          ui.Hex("#83838f"),
+	rowHover:           ui.RGBA(255, 255, 255, 0.05),
+	rowPressed:         ui.RGBA(255, 255, 255, 0.09),
+	rowSelected:        ui.RGBA(255, 255, 255, 0.10),
+	rowSelectedPressed: ui.RGBA(255, 255, 255, 0.15),
+	card:               ui.Hex("#232328"),
+	chip:               ui.RGBA(255, 255, 255, 0.07),
+	control:            ui.Hex("#404047"),
+	controlHover:       ui.Hex("#4a4a52"),
+	divider:            ui.RGBA(255, 255, 255, 0.07),
+	accent:             ui.Hex("#0a84ff"),
+	attention:          ui.Hex("#f0a33a"),
+	danger:             ui.Hex("#ff6961"),
 }
 
 // channelHues 返回频段标签用的紫色和青色。
@@ -142,4 +162,26 @@ func chosen(e ui.Element, p *palette) ui.Element {
 	}
 	return e.Shadow(0, 0, 0, 0.5, ui.RGBA(0, 0, 0, 0.06)).
 		Shadow(0, 0.5, 2, 0, ui.RGBA(0, 0, 0, 0.05))
+}
+
+// pressScale 在按下的当帧缩小元素，松开后弹回。AnimateTo 从当前值
+// 继续，快速连点也不会跳变。
+func pressScale(e ui.Element, pressed bool, amount float32) ui.Element {
+	target := float32(1)
+	if pressed {
+		target = amount
+	}
+	s := e.AnimateTo("press-scale", target, pressSpring)
+	return e.Scale(s, s)
+}
+
+// contentSwap 用淡入替换一块内容。旧内容在同一帧让位，新内容从下方
+// 轻轻浮入，避免两页文字在过渡中叠在一起；输入不会被锁住。
+func contentSwap(c *ui.Context, key string, fn func()) {
+	e := ui.Column(c).Key(key).Grow(1).MinHeight(0).MinWidth(0)
+	e.Transition(ui.ElementTransition{
+		Animation: &pageSpring,
+		Enter:     &ui.Motion{Opacity: 0, Y: 6},
+	})
+	e.Children(fn)
 }

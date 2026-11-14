@@ -1,8 +1,6 @@
 package main
 
 import (
-	"time"
-
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/updater"
 	"github.com/egoist/mygo/ui"
@@ -83,13 +81,17 @@ func (a *app) settingsNavItem(c *ui.Context, pal *palette, p settingsNavItem) {
 	}
 	bg := ui.Transparent
 	switch {
+	case selected && item.Pressed():
+		bg = pal.rowSelectedPressed
 	case selected:
 		bg = pal.rowSelected
 		chosen(item, pal)
+	case item.Pressed():
+		bg = pal.rowPressed
 	case item.Hovered():
 		bg = pal.rowHover
 	}
-	item.Background(item.AnimateColor("bg", bg, ui.Animation{Duration: 110 * time.Millisecond}))
+	item.Background(item.AnimateColor("bg", bg, colorMotion))
 	if item.Clicked() && !selected {
 		a.settingsPage = p.id
 	}
@@ -116,12 +118,18 @@ func (a *app) settingsContent(c *ui.Context, pal *palette) {
 		card.Children(func() {
 			ui.Row(c).Height(48).Shrink(0).Padding(0, 10, 0, 20).Gap(8).
 				AlignItems(ui.Center).DragWindow().Children(func() {
-				ui.Text(c, page.title).FontSize(15).FontWeight(650).TextColor(pal.text)
+				ui.Text(c, page.title).FontSize(15).FontWeight(650).TextColor(pal.text).
+					ContentTransition(ui.ContentTransition{Animation: &colorMotion})
 				ui.Spacer(c)
 				a.windowControlsFor(c, pal, a.settingsWin)
 			})
 			ui.Scroll(c).Grow(1).MinHeight(0).Padding(14, 28, 26, 28).Children(func() {
-				ui.Column(c).Gap(22).MaxWidth(620).Children(func() {
+				body := ui.Column(c).Key("settings-page-" + page.id).Gap(22).MaxWidth(620)
+				body.Transition(ui.ElementTransition{
+					Animation: &pageSpring,
+					Enter:     &ui.Motion{Opacity: 0, Y: 6},
+				})
+				body.Children(func() {
 					switch page.id {
 					case "general":
 						a.generalSettings(c, pal)
@@ -164,7 +172,7 @@ func (a *app) aboutSettings(c *ui.Context, pal *palette) {
 		ui.Image(c, appIcon).Size(72, 72).Radius(16).Border(0.5, border).
 			Shadow(0, 6, 16, -8, ui.RGBA(0, 0, 0, 0.28))
 		ui.Text(c, "Hoyo Gacha").FontSize(21).FontWeight(650).TextColor(pal.text).
-			Margin(14, 0, 2, 0)
+			LetterSpacing(-0.3).Margin(14, 0, 2, 0)
 		ui.Text(c, "原神 · 崩坏：星穹铁道 · 绝区零 抽卡记录管理器").
 			FontSize(12.5).TextColor(pal.textMuted).TextAlign(ui.Center)
 		ui.Text(c, versionText()).FontSize(11.5).TextColor(pal.textFaint).Margin(4, 0, 0, 0)
@@ -239,7 +247,8 @@ func settingsButton(c *ui.Context, pal *palette, key, label string, iconSVG *ui.
 	case b.Hovered():
 		bg = pal.controlHover
 	}
-	b.Background(b.AnimateColor("bg", bg, ui.Animation{Duration: 90 * time.Millisecond})).TextColor(fg)
+	b.Background(b.AnimateColor("bg", bg, colorMotion)).TextColor(fg)
+	b = pressScale(b, b.Pressed(), 0.97)
 	raised(b, pal)
 	b.Children(func() {
 		ui.Text(c, label).FontSize(12.5).FontWeight(500).SingleLine()
